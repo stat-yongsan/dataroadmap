@@ -6,6 +6,8 @@ An initial prototype of a new Data Roadmap built from scratch with Codex. It use
 
 This is a **new Codex-built prototype**. An earlier prototype of the project was built with Claude Code; the earlier work remains in the repository history. The catalogue index and synthetic sample are reused as data; the application code in this version was newly written with Codex.
 
+The website linked in the repository's About section currently serves the earlier version. This new prototype is available locally using the instructions below; it has not yet been deployed there.
+
 ## What it does
 
 1. Reads a UTF-8 CSV, shows its columns and first five rows, and identifies numeric columns.
