@@ -1,23 +1,23 @@
 # Data Roadmap
 
-An initial prototype of a new Data Roadmap built from scratch with Codex. It uses a catalogue of 17 work areas and 153 tasks organized with Astra, and helps a user turn a synthetic CSV and an analysis goal into an inspectable plan and a verified result.
+An initial prototype of a new Data Roadmap built from scratch with Codex. It uses a catalogue of 17 work areas and 153 tasks organized with Astra, and helps a user turn a synthetic CSV or Excel file and an analysis goal into an inspectable plan and a verified result.
 
 [한국어 실습 워크숍](workshop/codex-data-roadmap.md) · [Codex Skill](skills/data-roadmap/SKILL.md)
 
 This is a **new Codex-built prototype**. An earlier prototype of the project was built with Claude Code; the earlier work remains in the repository history. The catalogue index and synthetic sample are reused as data; the application code in this version was newly written with Codex.
 
-The website linked in the repository's About section currently serves the earlier version. This new prototype is available locally using the instructions below; it has not yet been deployed there.
+The prototype is available at [dataroadmap.axmaster.cloud](https://dataroadmap.axmaster.cloud/). The optional live model comparison is restricted to reviewers with an access password and a limited total number of comparisons; the local version can also be run using the instructions below.
 
 ## What it does
 
-1. Reads a UTF-8 CSV, shows its columns and first five rows, and identifies numeric columns.
+1. Reads UTF-8 CSV or the first sheet of an XLSX file, shows its columns and first five rows, and identifies numeric columns. XLSX formulas must first be saved as values; files are limited to 2 MB.
 2. Offers two implemented goals: group totals and group counts. The user selects the group and, for totals, the numeric column.
-3. Shows a plan before running it. Running the plan processes the data and checks the grouped total against the original total or row count.
-4. Displays Astra's catalogue as 17 areas and 153 cards. The catalogue is broader than the two goals implemented in this prototype.
+3. Shows the fixed procedure and measured data checks before execution. Running it checks the grouped total against the original total or row count and charts the actual result.
+4. Displays Astra's catalogue as 17 areas and 153 cards. Only a few cards have measurable checks; other cards are marked unassessed, not zero. The catalogue is broader than the two executable goals.
 
-CSV files stay in the local app. The plans and calculations use deterministic code and do not call an AI model. Use synthetic data only. Unsupported goals, malformed rows, missing group values and unparseable numbers stop with an explanation.
+Files stay in the app. The fixed procedure and calculations use deterministic code and do not call an AI model. Measured check percentages are not AI recommendations or success probabilities. Use synthetic data only. Unsupported goals, malformed rows, missing group values and unparseable numbers stop execution with an explanation.
 
-The separate **GPT-6.1 Sol vs Jev** comparison sends the same question and measured summary to Codex CLI and TypeSafe Jev after explicit in-app consent. It sends column names and row count, not CSV rows. Install Codex CLI and sign in with the intended account; put `TYPESAFE_API_KEY` in an untracked `.env` next to the app (or its parent) and restart. To use an existing `.env` elsewhere without copying the key, set `DATA_ROADMAP_ENV_FILE` to that file's path before starting. Both providers are called once per comparison. Timings include Codex CLI startup, and the comparison does not measure decision accuracy or execute either model's choice. The integration has been checked with simulated responses; real provider calls have not yet been verified for this version.
+The separate **GPT-6.1 Sol vs Jev** comparison sends the same measured summary and 17-area choice to Codex CLI and TypeSafe Jev after explicit in-app consent. It sends column names, row count and measured checks, not file rows. Codex supplies a choice and model-generated explanation; Jev supplies its own choice and distribution. Jev's probabilities are not success rates or Codex scores. Neither model's choice is automatically executed. Install Codex CLI and sign in with the intended account; put `TYPESAFE_API_KEY` in an untracked `.env` next to the app (or its parent) and restart. To use an existing `.env` elsewhere without copying the key, set `DATA_ROADMAP_ENV_FILE` to that file's path before starting. Each comparison calls both providers once. Timings include Codex CLI startup and do not measure accuracy. On one real synthetic-data test both selected I (aggregation); this is not evidence of general reliability.
 
 ## Run on Windows
 

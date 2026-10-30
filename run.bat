@@ -6,6 +6,8 @@ if not exist backend\.venv\Scripts\python.exe (
   py -3 -m venv backend\.venv || goto :err
   backend\.venv\Scripts\python -m pip install -r backend\requirements.txt || goto :err
 )
+backend\.venv\Scripts\python -c "import openpyxl, defusedxml" >nul 2>&1
+if errorlevel 1 backend\.venv\Scripts\python -m pip install -r backend\requirements.txt || goto :err
 if not exist frontend\dist\index.html (
   echo [2/3] Building the frontend...
   pushd frontend

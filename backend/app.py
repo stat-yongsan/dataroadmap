@@ -6,15 +6,19 @@ import io
 import json
 import re
 from collections import Counter
+from datetime import date, datetime, time as datetime_time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
+from zipfile import BadZipFile, ZipFile
+
+from openpyxl import load_workbook
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
-from backend import race
+from backend import access, race
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BYTES = 2 * 1024 * 1024
@@ -77,28 +81,52 @@ def profile(raw: bytes) -> dict:
             "preview": [[row[col] for col in columns] for row in rows[:5]]}
 
 
-def make_plan(raw: bytes, goal: str, group_col: str, value_col: str = "") -> dict:
+def make_plan(raw: bytes, goal: str, group_col: str, value_col: str = "", source: str = "csv") -> dict:
     columns, rows = parse_csv(raw)
     if goal not in ("sum", "count"):
         raise ValueError("지원하는 목표를 선택해 주세요.")
     if group_col not in columns:
         raise ValueError("데이터에 있는 그룹 열을 선택해 주세요.")
-    if any(not row[group_col].strip() for row in rows):
-        raise ValueError("그룹 값이 비어 있는 행이 있어 먼저 확인해야 합니다.")
     if goal == "sum":
         if value_col not in columns or value_col == group_col:
             raise ValueError("그룹 열과 다른 금액 열을 선택해 주세요.")
-        for row in rows:
-            amount(row[value_col])
-    steps = (["CSV 읽기", "그룹 값 확인", "금액 해석", "그룹별 합계", "원본 합계와 대조"] if goal == "sum"
-             else ["CSV 읽기", "그룹 값 확인", "그룹별 건수", "원본 행 수와 대조"])
+    first = "Excel 첫 시트 읽기" if source == "xlsx" else "CSV 읽기"
+    steps = ([first, "그룹 값 확인", "금액 해석", "그룹별 합계", "원본 합계와 대조"] if goal == "sum"
+             else [first, "그룹 값 확인", "그룹별 건수", "원본 행 수와 대조"])
+    group_present = sum(bool(row[group_col].strip()) for row in rows)
+    checks = [True, group_present == len(rows)]
+    if goal == "sum":
+        checks.append(all(_is_amount(row[value_col]) for row in rows))
+    assessments = {
+        ("A02" if source == "xlsx" else "A03"): {"score": 100.0, "basis": "첫 시트 읽기와 행 형식 검사 통과 (2/2)" if source == "xlsx" else "UTF-8 CSV 읽기와 행 형식 검사 통과 (2/2)"},
+        "D01": {"score": 100.0, "basis": "선택한 열이 머리글에 존재함"},
+        "D02": {"score": round(100 * group_present / len(rows), 1),
+                "basis": f"그룹 값이 있는 행 {group_present:,}/{len(rows):,}"},
+        "I01": {"score": round(100 * sum(checks) / len(checks), 1),
+                "basis": f"집계에 필요한 확인 항목 {sum(checks)}/{len(checks)} 통과"},
+    }
+    if goal == "sum":
+        parsed = sum(_is_amount(row[value_col]) for row in rows)
+        assessments["C03"] = {"score": round(100 * parsed / len(rows), 1),
+                               "basis": f"숫자로 읽은 값 {parsed:,}/{len(rows):,}"}
     return {"goal": goal, "group_col": group_col, "value_col": value_col if goal == "sum" else None,
-            "row_count": len(rows), "steps": steps, "status": "not_run"}
+            "row_count": len(rows), "steps": steps, "status": "not_run", "assessments": assessments,
+            "executable": all(checks)}
 
 
-def execute(raw: bytes, goal: str, group_col: str, value_col: str = "") -> dict:
-    plan = make_plan(raw, goal, group_col, value_col)
+def _is_amount(value: str) -> bool:
+    try:
+        amount(value)
+        return True
+    except ValueError:
+        return False
+
+
+def execute(raw: bytes, goal: str, group_col: str, value_col: str = "", source: str = "csv") -> dict:
+    plan = make_plan(raw, goal, group_col, value_col, source)
     _, rows = parse_csv(raw)
+    if any(not row[group_col].strip() for row in rows):
+        raise ValueError("그룹 값이 비어 있는 행이 있어 먼저 확인해야 합니다.")
     if goal == "sum":
         totals: dict[str, Decimal] = {}
         for row in rows:
@@ -120,12 +148,53 @@ def execute(raw: bytes, goal: str, group_col: str, value_col: str = "") -> dict:
     return {"plan": plan, "rows": result, "total": total, "verified": verified, "check": check}
 
 
+def xlsx_to_csv(raw: bytes) -> bytes:
+    try:
+        with ZipFile(io.BytesIO(raw)) as archive:
+            if sum(info.file_size for info in archive.infolist()) > 20 * 1024 * 1024:
+                raise ValueError("압축 해제된 Excel 파일은 20MB 이하만 지원합니다.")
+        workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=False, keep_links=False)
+        try:
+            sheet = workbook.worksheets[0]
+            if sheet.max_row > MAX_ROWS + 1 or sheet.max_column > 500:
+                raise ValueError("Excel은 최대 10만 행, 500열까지 지원합니다.")
+            out = io.StringIO(newline="")
+            writer = csv.writer(out)
+            for cells in sheet.iter_rows():
+                if any(cell.data_type == "f" for cell in cells):
+                    raise ValueError("수식 셀이 있습니다. 값으로 저장한 가상 파일을 사용해 주세요.")
+                row = []
+                for cell in cells:
+                    v = cell.value
+                    if isinstance(v, (datetime, date, datetime_time)):
+                        v = v.isoformat()
+                    elif isinstance(v, bool):
+                        v = "TRUE" if v else "FALSE"
+                    row.append("" if v is None else str(v))
+                writer.writerow(row)
+            return out.getvalue().encode("utf-8")
+        finally:
+            workbook.close()
+    except (BadZipFile, KeyError, IndexError, OSError) as exc:
+        raise ValueError("Excel 파일을 읽을 수 없습니다.") from exc
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError("Excel 파일 형식이 올바르지 않습니다.") from exc
+
+
 async def read_file(file: UploadFile) -> bytes:
-    if not (file.filename or "").lower().endswith(".csv"):
-        raise HTTPException(400, "CSV 파일만 지원합니다.")
+    name = (file.filename or "").lower()
+    if not name.endswith((".csv", ".xlsx")):
+        raise HTTPException(400, "CSV 또는 XLSX 파일만 지원합니다.")
     raw = await file.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise HTTPException(400, "파일은 2MB 이하만 사용할 수 있습니다.")
+    if name.endswith(".xlsx"):
+        try:
+            return xlsx_to_csv(raw)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     return raw
 
 
@@ -151,7 +220,7 @@ async def get_profile(file: UploadFile = File(...)):
 @app.post("/api/plan")
 async def get_plan(file: UploadFile = File(...), goal: str = Form(...), group_col: str = Form(...), value_col: str = Form("")):
     try:
-        return make_plan(await read_file(file), goal, group_col, value_col)
+        return make_plan(await read_file(file), goal, group_col, value_col, "xlsx" if (file.filename or "").lower().endswith(".xlsx") else "csv")
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -159,14 +228,14 @@ async def get_plan(file: UploadFile = File(...), goal: str = Form(...), group_co
 @app.post("/api/run")
 async def run_plan(file: UploadFile = File(...), goal: str = Form(...), group_col: str = Form(...), value_col: str = Form("")):
     try:
-        return execute(await read_file(file), goal, group_col, value_col)
+        return execute(await read_file(file), goal, group_col, value_col, "xlsx" if (file.filename or "").lower().endswith(".xlsx") else "csv")
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/api/race/availability")
 def race_availability():
-    return race.availability()
+    return {**race.availability(), "review_required": access.hosted()}
 
 
 @app.post("/api/race")
@@ -182,9 +251,13 @@ async def race_models(request: Request, file: UploadFile = File(...), goal: str 
     try:
         raw = await read_file(file)
         p = profile(raw)
-        make_plan(raw, goal, group_col, value_col)
+        plan = make_plan(raw, goal, group_col, value_col, "xlsx" if (file.filename or "").lower().endswith(".xlsx") else "csv")
+        if not race.availability()["jev_key_present"] or not race.availability()["codex_installed"]:
+            raise ValueError("비교 공급자 설정을 확인해 주세요.")
+        access.reserve(request.headers.get("x-review-password"))
         state = {"goal": goal, "group_col": group_col, "value_col": value_col if goal == "sum" else None,
-                 "row_count": p["row_count"], "columns": p["columns"], "numeric_columns": p["numeric_columns"]}
+                 "row_count": p["row_count"], "columns": p["columns"], "numeric_columns": p["numeric_columns"],
+                 "measured_checks": plan["assessments"]}
         return await run_in_threadpool(race.compare, state)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
