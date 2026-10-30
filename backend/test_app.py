@@ -35,6 +35,7 @@ class DataRoadmapTests(unittest.TestCase):
         client = TestClient(app)
         response = client.get("/api/sample")
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "no-store")
         raw = response.content
         self.assertEqual(raw, client.get("/api/sample").content)
         rows = list(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))))

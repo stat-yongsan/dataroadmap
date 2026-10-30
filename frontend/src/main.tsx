@@ -80,7 +80,7 @@ function App() {
   }
   async function loadSample() {
     setBusy(true); setError('')
-    try { const r = await fetch('/api/sample'); if (!r.ok) throw new Error('예제를 불러오지 못했습니다.'); setGoal('count'); await loadFile(new File([await r.blob()], 'students-synthetic.csv', {type:'text/csv'})) }
+    try { const r = await fetch('/api/sample', {cache: 'no-store'}); if (!r.ok) throw new Error('예제를 불러오지 못했습니다.'); setGoal('count'); await loadFile(new File([await r.blob()], 'students-synthetic.csv', {type:'text/csv'})) }
     catch (e) { setError((e as Error).message); setBusy(false) }
   }
   async function makePlan() {

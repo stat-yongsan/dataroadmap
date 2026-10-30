@@ -207,7 +207,7 @@ def get_catalog():
 
 @app.get("/api/sample")
 def get_sample():
-    return Response(student_csv(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="students-synthetic.csv"'})
+    return Response(student_csv(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="students-synthetic.csv"', "Cache-Control": "no-store"})
 
 
 @app.get("/api/sample/transactions")
