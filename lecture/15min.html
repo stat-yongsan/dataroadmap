@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<meta charset="utf-8">
+<title>Jev 15분 핵심</title>
+<style>
+  /*
+    이 파일은 시작 템플릿입니다.
+    - <!-- SLIDES START --> ~ <!-- SLIDES END --> 사이의 예시 슬라이드를 실제 강의 내용으로 교체하세요.
+    - CSS(:root 토큰, 컴포넌트 클래스)와 <script>의 엔진 로직은 그대로 두고 재사용하세요.
+    - 이 파일은 의도적으로 <!DOCTYPE>/<html>/<head>/<body> 태그가 없는 "조각(fragment)" 형태입니다.
+      맨 앞의 <meta charset="utf-8">은 <head> 없이도 브라우저가 인코딩을 프리스캔으로
+      감지하게 해준다 — 이게 없으면 서버/파일시스템이 UTF-8을 명시하지 않을 때 한글이 깨진다.
+      Claude Code Artifact로 게시할 때는 이 조각을 그대로 사용하고,
+      로컬에 독립 실행 가능한 .html 파일로 저장할 때만 아래 껍데기로 감싸서 저장하세요.
+
+      <!DOCTYPE html>
+      <html lang="ko"><head>
+      <meta name="viewport" content="width=device-width, initial-scale=1"></head>
+      <body>
+      ... (이 파일 전체 내용, meta charset 포함) ...
+      </body></html>
+  */
+
+  :root{
+    --bg:#ffffff;
+    --bg-subtle:#f6f7fb;
+    --ink:#16181d;
+    --ink-soft:#52545c;
+    --ink-faint:#90939c;
+    --accent:#2952e3;
+    --accent-soft:#ecf0ff;
+    --warn:#b45309;
+    --warn-soft:#fdf3e2;
+    --good:#15803d;
+    --good-soft:#eafaf0;
+    --bad:#b91c1c;
+    --bad-soft:#fdecec;
+    --line:#e6e7ec;
+    --radius:16px;
+    --shadow:0 1px 2px rgba(20,20,30,.06), 0 20px 48px rgba(20,20,30,.12);
+    --font: -apple-system, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "D2Coding", monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html, body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--bg-subtle); color:var(--ink);
+    font-family:var(--font);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .deck{ display:flex; flex-direction:column; height:100%; }
+
+  /* ---------- 상단 바 ---------- */
+  .topbar{
+    position:relative; flex:0 0 auto; height:56px;
+    display:flex; align-items:center; padding:0 28px;
+    background:var(--bg); border-bottom:1px solid var(--line); z-index:5;
+  }
+  .topbar-title{
+    font-weight:700; font-size:14px; color:var(--ink);
+    max-width:40%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .topbar-section{ flex:1; text-align:center; font-size:13px; font-weight:600; color:var(--ink-faint); }
+  .topbar-progress{ position:absolute; left:0; right:0; bottom:-1px; height:3px; background:var(--line); }
+  .topbar-progress-bar{ height:100%; width:0%; background:var(--accent); transition:width .3s ease; }
+
+  /* ---------- 무대 / 프레임 (16:9 고정, 자동 스케일) ---------- */
+  .stage{ position:relative; flex:1 1 auto; overflow:hidden; background:var(--bg-subtle); }
+  .frame{
+    position:absolute; top:50%; left:50%; width:1280px; height:720px;
+    background:var(--bg); border-radius:14px; box-shadow:var(--shadow); overflow:hidden;
+  }
+
+  .slide{
+    position:absolute; inset:0; display:none; flex-direction:column;
+    padding:60px 72px 52px;
+  }
+  .slide.active{ display:flex; animation:slideIn .35s ease; }
+  @keyframes slideIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+
+  .slide-kicker{ font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin:0 0 14px; }
+  .slide-title{ font-size:32px; line-height:1.35; font-weight:800; color:var(--ink); margin:0 0 10px; }
+  .slide-title .hl, .slide-title mark{ background:none; color:var(--accent); padding:0; }
+  .slide-lede{ font-size:16px; color:var(--ink-soft); line-height:1.6; margin:0 0 26px; }
+  .slide-body{ flex:1; min-height:0; display:flex; flex-direction:column; gap:20px; font-size:16px; color:var(--ink-soft); line-height:1.7; }
+  .slide-body p{ margin:0; }
+
+  /* 표지 슬라이드 */
+  .slide.cover{ justify-content:center; }
+  .cover-kicker{ font-size:14px; font-weight:700; color:var(--accent); letter-spacing:.08em; text-transform:uppercase; margin-bottom:18px; }
+  .cover-title{ font-size:50px; font-weight:800; line-height:1.25; margin:0 0 18px; }
+  .cover-sub{ font-size:18px; color:var(--ink-soft); max-width:80%; line-height:1.7; margin:0; }
+  .cover-hint{ position:absolute; left:72px; bottom:40px; font-size:13px; color:var(--ink-faint); }
+
+  /* 점진적 공개 */
+  [data-step]{ transition:opacity .25s ease, transform .25s ease; }
+  [data-step].step-hidden{ opacity:0; transform:translateY(6px); pointer-events:none; }
+
+  /* ---------- 컴포넌트 ---------- */
+  .card-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:18px; }
+  .card{ background:var(--bg-subtle); border:1px solid var(--line); border-radius:var(--radius); padding:22px; }
+  .card-title{ font-weight:700; font-size:16px; margin:0 0 8px; color:var(--ink); }
+  .card-desc{ font-size:14px; color:var(--ink-soft); line-height:1.6; margin:0; }
+
+  .compare{ display:grid; grid-template-columns:1fr 1fr; gap:20px; flex:1; min-height:0; }
+  .compare-col{ border-radius:var(--radius); padding:24px; border:1px solid var(--line); overflow:auto; }
+  .compare-a{ background:var(--bg-subtle); }
+  .compare-b{ background:var(--accent-soft); border-color:var(--accent); }
+  .compare-label{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); margin:0 0 10px; }
+  .compare-b .compare-label{ color:var(--accent); }
+  .compare-col ul{ margin:0; padding-left:18px; }
+  .compare-col li{ margin-bottom:8px; font-size:14px; line-height:1.6; }
+
+  .timeline{ display:flex; align-items:flex-start; gap:0; padding-top:14px; }
+  .timeline-step{ flex:1; position:relative; padding:0 16px; }
+  .timeline-step::before{ content:''; position:absolute; top:-14px; left:16px; width:10px; height:10px; border-radius:50%; background:var(--accent); }
+  .timeline-step::after{ content:''; position:absolute; top:-10px; left:calc(16px + 10px); right:-16px; height:2px; background:var(--line); }
+  .timeline-step:last-child::after{ display:none; }
+  .timeline-step-title{ font-weight:700; font-size:14px; margin:16px 0 6px; color:var(--ink); }
+  .timeline-step-desc{ font-size:13px; color:var(--ink-soft); line-height:1.6; }
+
+  .flow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .flow-step{ background:var(--bg-subtle); border:1px solid var(--line); border-radius:12px; padding:16px 20px; font-weight:700; font-size:15px; color:var(--ink); text-align:center; }
+  .flow-step.is-accent{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+  .flow-arrow{ color:var(--ink-faint); font-size:20px; }
+
+  .hierarchy{ font-size:15px; line-height:2; color:var(--ink-soft); }
+  .hierarchy ul{ list-style:none; margin:0; padding-left:22px; border-left:1px dashed var(--line); }
+  .hierarchy > ul{ padding-left:0; border-left:none; }
+  .hierarchy li::before{ content:'→ '; color:var(--accent); font-weight:700; }
+
+  .stat-row{ display:flex; gap:48px; }
+  .stat-big .num{ font-size:52px; font-weight:800; color:var(--accent); line-height:1; }
+  .stat-big .label{ font-size:14px; color:var(--ink-faint); margin-top:8px; }
+
+  .quote-box{ border-left:4px solid var(--accent); background:var(--accent-soft); padding:20px 26px; font-size:19px; font-weight:600; color:var(--ink); border-radius:0 12px 12px 0; }
+
+  .code-block{ background:#1b1d23; color:#e6e7ec; font-family:var(--font-mono); font-size:14px; line-height:1.6; padding:18px 20px; border-radius:12px; overflow-x:auto; white-space:pre; }
+
+  .checklist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .checklist li{ padding-left:28px; position:relative; font-size:15px; color:var(--ink-soft); }
+  .checklist li::before{ content:'✓'; position:absolute; left:0; color:var(--good); font-weight:700; }
+
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
+  .table-wrap table{ border-collapse:collapse; width:100%; font-size:14px; }
+  .table-wrap th, .table-wrap td{ padding:12px 16px; border-bottom:1px solid var(--line); text-align:left; }
+  .table-wrap th{ background:var(--bg-subtle); font-weight:700; color:var(--ink); }
+  .table-wrap tr:last-child td{ border-bottom:none; }
+
+  .callout{ border-radius:12px; padding:16px 20px; font-size:14px; line-height:1.6; border:1px solid transparent; }
+  .callout-label{ font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 6px; display:block; }
+  .callout-note{ background:var(--bg-subtle); border-color:var(--line); color:var(--ink-soft); }
+  .callout-warn{ background:var(--warn-soft); border-color:#f0c893; color:var(--warn); }
+  .callout-example{ background:var(--accent-soft); border-color:#c7d2fb; color:var(--ink); }
+  .callout-conclusion{ background:var(--ink); color:#fff; }
+
+  /* 퀴즈 */
+  .quiz{ display:flex; flex-direction:column; gap:16px; }
+  .quiz-q{ font-size:18px; font-weight:700; color:var(--ink); }
+  .quiz-options{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .quiz-option{ text-align:left; padding:14px 18px; border-radius:12px; border:1px solid var(--line); background:var(--bg); font-size:14px; color:var(--ink-soft); cursor:pointer; font-family:inherit; }
+  .quiz-option:hover:not(:disabled){ border-color:var(--accent); color:var(--ink); }
+  .quiz-option:disabled{ cursor:default; }
+  .quiz-option.is-correct{ background:var(--good-soft); border-color:var(--good); color:var(--good); font-weight:700; }
+  .quiz-option.is-wrong{ background:var(--bad-soft); border-color:var(--bad); color:var(--bad); }
+  .quiz-reveal{ display:none; background:var(--bg-subtle); border-radius:12px; padding:16px 20px; border:1px solid var(--line); }
+  .quiz.answered .quiz-reveal{ display:block; }
+  .quiz-answer{ font-weight:700; color:var(--good); margin:0 0 6px; font-size:14px; }
+  .quiz-explain{ font-size:14px; color:var(--ink-soft); line-height:1.6; margin:0; }
+
+  /* ---------- 하단 컨트롤 ---------- */
+  .controls{ flex:0 0 auto; height:60px; display:flex; align-items:center; justify-content:center; gap:14px; background:var(--bg); border-top:1px solid var(--line); }
+  .ctrl-btn{ width:36px; height:36px; border-radius:999px; border:1px solid var(--line); background:var(--bg); color:var(--ink-soft); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .ctrl-btn:hover:not(:disabled){ background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+  .ctrl-btn:disabled{ opacity:.35; cursor:default; }
+  .page-indicator{ font-size:13px; color:var(--ink-faint); min-width:64px; text-align:center; font-variant-numeric:tabular-nums; }
+
+  @media (max-width: 640px){
+    .controls{ gap:8px; }
+    .ctrl-btn{ width:32px; height:32px; }
+  }
+</style>
+<style>
+  /* D14 추가 — 앱 캡처(템플릿 토큰만 사용) */
+  .shot{ display:block; max-width:100%; max-height:452px; margin:0 auto; border:1px solid var(--line); border-radius:10px; object-fit:contain; }
+  .shot-cap{ font-size:13px; color:var(--ink-faint); line-height:1.6; margin:0; }
+  .mock-tag{ display:inline-block; background:var(--warn-soft); color:var(--warn); border:1px solid #f0c893; border-radius:999px; padding:1px 10px; font-size:12px; font-weight:700; margin-right:6px; }
+  .flow-step small{ font-weight:500; color:var(--ink-soft); font-size:12px; }
+  .slide-body a{ color:var(--accent); }
+  .slide-body > .compare{ flex:0 0 auto; }  /* 비교 상자는 내용 높이만큼만 — 남는 공간까지 늘리지 않는다 */
+  .shot{ max-height:470px; }
+</style>
+
+<div class="deck" id="deck">
+  <div class="topbar">
+    <div class="topbar-title" id="deckTitle">Jev 15분 핵심 — 업무 자동화의 빠진 한 조각</div>
+    <div class="topbar-section" id="sectionLabel"></div>
+    <div class="topbar-progress"><div class="topbar-progress-bar" id="progressBar"></div></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="frame" id="frame">
+
+      <!-- SLIDES START: 15분 핵심판 (D15) — 주제: Jev 는 업무 자동화의 핵심 아이디어 · 실습 1개 · 원고 = docs/source/Jev_60min_Lecture_KO.md · 60분판 = index.html -->
+
+      <section class="slide cover" data-section="시작">
+        <div class="cover-kicker">15분 핵심판 · 엑셀 실무자용</div>
+        <h1 class="cover-title">Jev: 업무 자동화의<br><span class="hl">빠진 한 조각</span></h1>
+        <p class="cover-sub">자동화는 「정해진 순서」는 잘 한다. 그런데 「지금 무엇부터 할지」는 여전히 사람이 정한다. 그 판단을 확률로 맡기는 아이디어를 파일 하나로 봅니다.</p>
+        <div class="cover-hint">→ 또는 Space로 시작 · 화면 속 앱 캡처는 모두 모의 판단(MOCK)입니다 · 계산 실습은 60분판에</div>
+      </section>
+
+      <section class="slide" data-section="문제">
+        <div class="slide-kicker">문제</div>
+        <h2 class="slide-title">합계를 내 달라는 파일인데, <span class="hl">바로 더할 수가 없다</span></h2>
+        <div class="slide-body">
+          <div class="table-wrap" style="max-width:520px;">
+            <table><thead><tr><th>거래번호</th><th>부서</th><th>사용처</th><th>금액</th></tr></thead>
+              <tbody><tr><td>T0001</td><td>총무팀</td><td>행사 대관</td><td>98,300원</td></tr><tr><td>T0002</td><td>인사팀</td><td>출장 교통비</td><td>128,700원</td></tr><tr><td>T0003</td><td>재무팀</td><td>출장 교통비</td><td>29,700원</td></tr><tr><td colspan="4" style="color:var(--ink-faint);">… 1,000행 · 부서 10곳 (가상 자료 example_a_money_text_1000.csv)</td></tr></tbody></table>
+          </div>
+          <div class="callout callout-example" data-step="1">
+            <span class="callout-label">왜</span>
+            금액 1,000개가 숫자가 아니라 <b>「98,300원」 같은 글자</b>다. 엑셀 SUM 은 0. 숫자로 바꾸는 일이 먼저다. 다음 파일은 또 다른 문제가 있을 수 있다.
+          </div>
+          <div class="quote-box" data-step="2">순서를 미리 박아 둔 자동화는 여기서 멈춘다. 「지금 무엇부터?」를 누가 정할까?</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="핵심 아이디어">
+        <div class="slide-kicker">핵심 아이디어</div>
+        <h2 class="slide-title"><span class="hl">판단</span>은 Jev 가 확률로, <span class="hl">실행</span>은 코드가 확실하게</h2>
+        <div class="slide-body" style="justify-content:center;">
+          <div class="flow">
+            <div class="flow-step">① 코드가 잰다<br><small>열 · 자료형 · 행 수</small></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-accent">② Jev 가 고른다<br><small>지금 먼저 할 작업</small></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">③ 규칙이 허락한다<br><small>해도 되는 작업인가</small></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">④ 파이썬이 한다<br><small>변환 · 합계 · 검증</small></div>
+            <div class="flow-arrow">↺</div>
+          </div>
+          <div class="callout callout-conclusion">
+            <span class="callout-label">한 줄</span>
+            순서를 미리 정하지 않는다. 한 단계 할 때마다 바뀐 상태를 다시 재고, 다시 고른다. 계산은 AI 에게 맡기지 않는다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="핵심 아이디어">
+        <div class="slide-kicker">Jev 가 하는 일</div>
+        <h2 class="slide-title">Jev 는 상황 메모를 받고 <span class="hl">후보마다 확률</span>로 답한다</h2>
+        <div class="slide-body">
+          <div class="compare" style="grid-template-columns:1fr 1fr;">
+            <div class="compare-col compare-a"><div class="compare-label">건네는 것 — 상황 메모(state)</div>
+              <ul><li>목표: 부서별 금액 합계</li><li>한 행의 의미: 거래 1건</li><li>지금 상태: 금액이 글자</li><li>후보 작업: C03 · D03 · I01</li></ul></div>
+            <div class="table-wrap">
+              <table><thead><tr><th>받는 것 — 지금 먼저 할 작업</th><th>확률</th></tr></thead>
+                <tbody><tr><td>C03 글자 숫자를 숫자로</td><td><b>0.70</b></td></tr><tr><td>D03 중복 찾기</td><td>0.20</td></tr><tr><td>I01 부서별 합계</td><td>0.10</td></tr></tbody></table>
+            </div>
+          </div>
+          <p class="shot-cap">교육용 예시 숫자다 — 실제 Jev 응답이 아니다. 질문 모양은 셋: 하나 고르기(Choice) · 수준 매기기(Score) · 예/아니오(Noul).</p>
+          <div class="callout callout-warn">
+            <span class="callout-label">헷갈리기 쉬움</span>
+            「C03 을 고를 확률 0.7」≠「C03 이 성공할 확률 0.7」. confidence 0.9 도 「90% 맞는다」가 아니다. 얼마나 맞는지는 실제 결과와 대조해야 안다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="실습">
+        <div class="slide-kicker">실습 (1/2) · 판단</div>
+        <h2 class="slide-title">1000행 파일을 올리면 <span class="hl">C03(0.39)</span>이 1순위 후보 — ★ 추천은 C05</h2>
+        <div class="slide-body">
+          <img class="shot" src="img/roadmap.png" alt="데이터 활용 로드맵 앱 — 1000행 파일 첫 판단 분기 그래프(모의 판단)">
+          <p class="shot-cap"><span class="mock-tag">모의 판단(MOCK)</span> 앱의 로컬 규칙이 만든 분포 — 실제 Jev 응답 · 성능이 아니다. 해 보기: 파일 올리기 → <code>examples\example_a_money_text_1000.csv</code> · 업무 키 = 거래번호.</p>
+        </div>
+      </section>
+
+      <section class="slide" data-section="실습">
+        <div class="slide-kicker">실습 · ★ 는 어떻게 고르나</div>
+        <h2 class="slide-title">★ 추천은 한 단계 확률이 아니라 <span class="hl">경로 추천 점수</span>로 고른다</h2>
+        <div class="slide-body">
+          <div class="quote-box" style="text-align:center;">경로 추천 점수 = ⁿ√( p₁ × p₂ × … × pₙ ) &nbsp;—&nbsp; 경로에 있는 <b>각 단계 선택지 확률의 기하평균</b></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>1000행 첫 판단의 경로</th><th>단계마다의 선택지 확률 (끝 = 목표 도달도 한 단계)</th><th>경로 추천 점수</th></tr></thead>
+              <tbody>
+                <tr><td><b>★ C05 → C03 → I01 → 끝</b></td><td>0.1897 · 0.4787 · 0.4762 · 0.2756</td><td><b>0.3304</b></td></tr>
+                <tr><td>C03 → I01 → 끝</td><td>0.3879 · 0.3774 · 0.2349</td><td>0.3252</td></tr>
+              </tbody></table>
+          </div>
+          <ul class="checklist">
+            <li>C03 을 먼저 하면 다음 판단에 C05 · D03 · D01 이 남아 I01 이 0.377 로 나뉜다. C05 를 먼저 하면 C03 이 0.479 로 뚜렷해진다</li>
+            <li>차이 0.005 는 사실상 동률이다 — 「C05 가 확실히 낫다」가 아니다</li>
+          </ul>
+          <div class="callout callout-warn"><span class="callout-label">Jev 의 수식이 아니다</span><span class="mock-tag">모의 판단(MOCK)</span> Jev 는 단계마다 선택지 확률(Choice)만 준다. 기하평균은 이 앱이 경로를 비교하려고 정한 점수(명세 §9)이고, 성공확률이 아니다. 위 확률은 앱의 로컬 규칙이 만든 값이다 — 실제 Jev 응답이 아니다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="실습">
+        <div class="slide-kicker">실습 (2/2) · 실행 → 다시 판단</div>
+        <h2 class="slide-title">★ 를 따라 실행 → C03 으로 금액이 숫자로 → <span class="hl">다시 고르니 I01</span> → 합계</h2>
+        <div class="slide-body">
+          <img class="shot" src="img/run.png" alt="실행 기록 — A03 C05 D03 D01 C03 I01 N02 모두 검증 완료, 부서별 합계 차트(모의 판단)">
+          <p class="shot-cap"><span class="mock-tag">모의 판단(MOCK)</span> 변환 · 합계 · 검증은 실제 파이썬 — 부서 10곳 · 합계 148,982,900원(CSV 를 따로 더한 값과 같음). 답이 바뀐 건 AI 가 배워서가 아니라 <b>건넨 상황 메모가 바뀌어서</b>다.</p>
+        </div>
+      </section>
+
+      <section class="slide" data-section="넓히기">
+        <div class="slide-kicker">엑셀 밖으로</div>
+        <h2 class="slide-title">같은 모양이 <span class="hl">다른 업무 자동화</span>에도 그대로 들어간다</h2>
+        <div class="slide-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>업무</th><th>Jev 에게 맡길 좁은 판단</th><th>코드 · 다른 도구가 할 일</th></tr></thead>
+              <tbody>
+                <tr><td>상담 문의 분류</td><td>환불 · 기술 · 이용안내 중 담당 경로 고르기</td><td>티켓 저장 · 담당자 배정</td></tr>
+                <tr><td>자유 의견 정리</td><td>미리 정한 개선 의견 범주 고르기</td><td>집계 · 검토 대상 표시 · 보고서</td></tr>
+                <tr><td>보고서 검수</td><td>근거가 주장을 뒷받침하는지 평가</td><td>수치 · 합계 · 분모 계산 검증</td></tr>
+                <tr><td>엑셀 파일 처리</td><td>153개 작업 카드 중 지금 할 작업 고르기</td><td>변환 · 집계 · 차트 · 결과 검증</td></tr>
+              </tbody></table>
+          </div>
+          <div class="callout callout-note">공통점: <b>후보가 정해져 있고, 조건(상황)을 설명할 수 있는 판단</b> 하나. 한국어 · 우리 기관 표현에서의 실제 품질은 따로 평가해야 한다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="넓히기">
+        <div class="slide-kicker">믿을 수 있는 자동화의 조건</div>
+        <h2 class="slide-title">확률이 높아도 <span class="hl">코드 검사가 먼저</span>다</h2>
+        <div class="slide-body">
+          <ul class="checklist">
+            <li>숫자 열이 있는지 · 중복이 있는지처럼 <b>잴 수 있는 건 코드가 판정</b>하고 확률로 덮지 않는다</li>
+            <li>confidence 하나로 자동 실행 권한을 주지 않는다 — 틀렸을 때 비용을 보고 사람 검토로 돌린다</li>
+            <li>등록된 작업만 실행한다 — 셀 안의 글을 명령으로 실행하지 않는다</li>
+            <li>고를 확률 · 경로 점수 · 실제 성공률은 서로 다른 숫자다 — 성공률은 실행 기록으로만 안다</li>
+          </ul>
+          <div class="quiz">
+            <div class="quiz-q">AI 는 「중복 문제 없음」을 높은 확률로 골랐는데, 코드가 같은 신청번호 2건을 찾았다. 어떻게 할까?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">확률이 높으니 그대로 진행한다</button>
+              <button class="quiz-option" data-correct="true">코드 검사가 우선 — 멈추고 사람이 검토한다</button>
+              <button class="quiz-option" data-correct="false">중복 2건을 바로 지운다</button>
+              <button class="quiz-option" data-correct="false">confidence 가 0.9 를 넘으면 진행한다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 코드 검사가 우선 — 멈추고 검토</div>
+              <div class="quiz-explain">파일에서 확실히 잴 수 있는 사실은 코드가 이긴다. 중복을 「찾는 일」과 「지우는 일」은 다르다 — 어떤 행을 남길지 규칙이 없으면 지우지 않는다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="정리">
+        <div class="slide-kicker">정리</div>
+        <h2 class="slide-title">자동화의 핵심: <span class="hl">고르는 건 확률</span>, 계산과 확인은 코드</h2>
+        <div class="slide-body">
+          <div class="compare">
+            <div class="compare-col compare-a"><div class="compare-label">오늘 기억할 세 가지</div>
+              <ul><li>순서를 박지 않고, 한 단계마다 <b>재고 → 고르고 → 실행 → 다시 잰다</b></li><li>Jev 는 정해 둔 후보 중 「지금 무엇」을 확률로 답한다</li><li>잴 수 있는 건 코드가 이긴다 — 확률은 정답 보증이 아니다</li></ul></div>
+            <div class="compare-col compare-b"><div class="compare-label">내 업무에 적어 보기</div>
+              <ul><li><b>판단 하나</b> — 무엇을 고르게 할까</li><li><b>상황 메모</b> — 그 판단에 필요한 정보</li><li><b>가능한 답</b> — 후보 목록 · 수준 · 예/아니오</li></ul></div>
+          </div>
+          <div class="callout callout-example"><span class="callout-label">더 해 보기</span>평균 · 분산 · β · Brier 계산 실습은 <a href="index.html">60분판</a>과 앱의 <a href="http://127.0.0.1:8765/learn" target="_blank" rel="noopener">배우기(/learn)</a> — 앱은 <code>data-roadmap\run.bat</code> 더블클릭. 출처: <a href="https://docs.typesafe.ai/introduction" target="_blank" rel="noopener">TypeSafe 공식 문서</a>. 앱 캡처는 모의 판단이며 실제 Jev 호출은 검증하지 않았다.</div>
+        </div>
+      </section>
+
+      <!-- SLIDES END -->
+
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btnFirst" title="처음으로" aria-label="처음으로">⏮</button>
+    <button class="ctrl-btn" id="btnPrev" title="이전" aria-label="이전 슬라이드">◀</button>
+    <div class="page-indicator" id="pageIndicator">1 / 10</div>
+    <button class="ctrl-btn" id="btnNext" title="다음" aria-label="다음 슬라이드">▶</button>
+    <button class="ctrl-btn" id="btnLast" title="마지막으로" aria-label="마지막으로">⏭</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var frame = document.getElementById('frame');
+  var stage = document.getElementById('stage');
+  var slides = Array.prototype.slice.call(frame.querySelectorAll('.slide'));
+  var pageIndicator = document.getElementById('pageIndicator');
+  var sectionLabel = document.getElementById('sectionLabel');
+  var progressBar = document.getElementById('progressBar');
+  var btnFirst = document.getElementById('btnFirst');
+  var btnPrev = document.getElementById('btnPrev');
+  var btnNext = document.getElementById('btnNext');
+  var btnLast = document.getElementById('btnLast');
+
+  var current = 0;
+  var stepIndex = 0;
+
+  function stepsOf(slide){
+    var els = slide.querySelectorAll('[data-step]');
+    var max = 0;
+    for(var i=0;i<els.length;i++){
+      var n = parseInt(els[i].getAttribute('data-step'), 10);
+      if(!isNaN(n) && n > max) max = n;
+    }
+    return max;
+  }
+
+  function applySteps(slide, idx){
+    var els = slide.querySelectorAll('[data-step]');
+    for(var i=0;i<els.length;i++){
+      var n = parseInt(els[i].getAttribute('data-step'), 10);
+      els[i].classList.toggle('step-hidden', n > idx);
+    }
+  }
+
+  function render(){
+    for(var i=0;i<slides.length;i++){ slides[i].classList.toggle('active', i === current); }
+    var slide = slides[current];
+    applySteps(slide, stepIndex);
+    pageIndicator.textContent = (current+1) + ' / ' + slides.length;
+    sectionLabel.textContent = slide.getAttribute('data-section') || '';
+    progressBar.style.width = ((current+1) / slides.length * 100) + '%';
+    btnFirst.disabled = current === 0;
+    btnPrev.disabled = current === 0;
+    btnNext.disabled = current === slides.length - 1;
+    btnLast.disabled = current === slides.length - 1;
+  }
+
+  function next(){
+    var slide = slides[current];
+    var maxStep = stepsOf(slide);
+    if(stepIndex < maxStep){ stepIndex++; render(); return; }
+    if(current < slides.length - 1){ current++; stepIndex = 0; render(); }
+  }
+  function prev(){
+    if(stepIndex > 0){ stepIndex--; render(); return; }
+    if(current > 0){ current--; stepIndex = stepsOf(slides[current]); render(); }
+  }
+  function first(){ current = 0; stepIndex = 0; render(); }
+  function last(){ current = slides.length - 1; stepIndex = stepsOf(slides[current]); render(); }
+
+  btnFirst.addEventListener('click', function(e){ e.stopPropagation(); first(); });
+  btnPrev.addEventListener('click', function(e){ e.stopPropagation(); prev(); });
+  btnNext.addEventListener('click', function(e){ e.stopPropagation(); next(); });
+  btnLast.addEventListener('click', function(e){ e.stopPropagation(); last(); });
+
+  stage.addEventListener('click', function(e){
+    if(e.target.closest('.quiz-option, .ctrl-btn, button, a, input, textarea, select, label')) return;
+    next();
+  });
+
+  window.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); next(); }
+    else if(e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+    else if(e.key === 'Home'){ e.preventDefault(); first(); }
+    else if(e.key === 'End'){ e.preventDefault(); last(); }
+  });
+
+  var touchX = null;
+  stage.addEventListener('touchstart', function(e){ touchX = e.changedTouches[0].clientX; }, {passive:true});
+  stage.addEventListener('touchend', function(e){
+    if(touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if(Math.abs(dx) > 50){ if(dx < 0){ next(); } else { prev(); } }
+    touchX = null;
+  }, {passive:true});
+
+  var quizzes = document.querySelectorAll('.quiz');
+  for(var q=0; q<quizzes.length; q++){
+    (function(quiz){
+      var options = quiz.querySelectorAll('.quiz-option');
+      for(var i=0;i<options.length;i++){
+        options[i].addEventListener('click', function(e){
+          e.stopPropagation();
+          if(quiz.classList.contains('answered')) return;
+          quiz.classList.add('answered');
+          for(var j=0;j<options.length;j++){
+            options[j].disabled = true;
+            if(options[j].getAttribute('data-correct') === 'true'){ options[j].classList.add('is-correct'); }
+          }
+          if(this.getAttribute('data-correct') !== 'true'){ this.classList.add('is-wrong'); }
+        });
+      }
+    })(quizzes[q]);
+  }
+
+  function fit(){
+    var pad = 24;
+    var availW = stage.clientWidth - pad*2;
+    var availH = stage.clientHeight - pad*2;
+    var scale = Math.min(availW/1280, availH/720);
+    frame.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+  render();
+})();
+</script>
+</body>
+</html>

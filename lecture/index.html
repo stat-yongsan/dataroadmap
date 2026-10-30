@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<meta charset="utf-8">
+<title>Jev 확률 강의</title>
+<style>
+  /*
+    이 파일은 시작 템플릿입니다.
+    - <!-- SLIDES START --> ~ <!-- SLIDES END --> 사이의 예시 슬라이드를 실제 강의 내용으로 교체하세요.
+    - CSS(:root 토큰, 컴포넌트 클래스)와 <script>의 엔진 로직은 그대로 두고 재사용하세요.
+    - 이 파일은 의도적으로 <!DOCTYPE>/<html>/<head>/<body> 태그가 없는 "조각(fragment)" 형태입니다.
+      맨 앞의 <meta charset="utf-8">은 <head> 없이도 브라우저가 인코딩을 프리스캔으로
+      감지하게 해준다 — 이게 없으면 서버/파일시스템이 UTF-8을 명시하지 않을 때 한글이 깨진다.
+      Claude Code Artifact로 게시할 때는 이 조각을 그대로 사용하고,
+      로컬에 독립 실행 가능한 .html 파일로 저장할 때만 아래 껍데기로 감싸서 저장하세요.
+
+      <!DOCTYPE html>
+      <html lang="ko"><head>
+      <meta name="viewport" content="width=device-width, initial-scale=1"></head>
+      <body>
+      ... (이 파일 전체 내용, meta charset 포함) ...
+      </body></html>
+  */
+
+  :root{
+    --bg:#ffffff;
+    --bg-subtle:#f6f7fb;
+    --ink:#16181d;
+    --ink-soft:#52545c;
+    --ink-faint:#90939c;
+    --accent:#2952e3;
+    --accent-soft:#ecf0ff;
+    --warn:#b45309;
+    --warn-soft:#fdf3e2;
+    --good:#15803d;
+    --good-soft:#eafaf0;
+    --bad:#b91c1c;
+    --bad-soft:#fdecec;
+    --line:#e6e7ec;
+    --radius:16px;
+    --shadow:0 1px 2px rgba(20,20,30,.06), 0 20px 48px rgba(20,20,30,.12);
+    --font: -apple-system, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "D2Coding", monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html, body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--bg-subtle); color:var(--ink);
+    font-family:var(--font);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .deck{ display:flex; flex-direction:column; height:100%; }
+
+  /* ---------- 상단 바 ---------- */
+  .topbar{
+    position:relative; flex:0 0 auto; height:56px;
+    display:flex; align-items:center; padding:0 28px;
+    background:var(--bg); border-bottom:1px solid var(--line); z-index:5;
+  }
+  .topbar-title{
+    font-weight:700; font-size:14px; color:var(--ink);
+    max-width:40%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .topbar-section{ flex:1; text-align:center; font-size:13px; font-weight:600; color:var(--ink-faint); }
+  .topbar-progress{ position:absolute; left:0; right:0; bottom:-1px; height:3px; background:var(--line); }
+  .topbar-progress-bar{ height:100%; width:0%; background:var(--accent); transition:width .3s ease; }
+
+  /* ---------- 무대 / 프레임 (16:9 고정, 자동 스케일) ---------- */
+  .stage{ position:relative; flex:1 1 auto; overflow:hidden; background:var(--bg-subtle); }
+  .frame{
+    position:absolute; top:50%; left:50%; width:1280px; height:720px;
+    background:var(--bg); border-radius:14px; box-shadow:var(--shadow); overflow:hidden;
+  }
+
+  .slide{
+    position:absolute; inset:0; display:none; flex-direction:column;
+    padding:60px 72px 52px;
+  }
+  .slide.active{ display:flex; animation:slideIn .35s ease; }
+  @keyframes slideIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+
+  .slide-kicker{ font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin:0 0 14px; }
+  .slide-title{ font-size:32px; line-height:1.35; font-weight:800; color:var(--ink); margin:0 0 10px; }
+  .slide-title .hl, .slide-title mark{ background:none; color:var(--accent); padding:0; }
+  .slide-lede{ font-size:16px; color:var(--ink-soft); line-height:1.6; margin:0 0 26px; }
+  .slide-body{ flex:1; min-height:0; display:flex; flex-direction:column; gap:20px; font-size:16px; color:var(--ink-soft); line-height:1.7; }
+  .slide-body p{ margin:0; }
+
+  /* 표지 슬라이드 */
+  .slide.cover{ justify-content:center; }
+  .cover-kicker{ font-size:14px; font-weight:700; color:var(--accent); letter-spacing:.08em; text-transform:uppercase; margin-bottom:18px; }
+  .cover-title{ font-size:50px; font-weight:800; line-height:1.25; margin:0 0 18px; }
+  .cover-sub{ font-size:18px; color:var(--ink-soft); max-width:80%; line-height:1.7; margin:0; }
+  .cover-hint{ position:absolute; left:72px; bottom:40px; font-size:13px; color:var(--ink-faint); }
+
+  /* 점진적 공개 */
+  [data-step]{ transition:opacity .25s ease, transform .25s ease; }
+  [data-step].step-hidden{ opacity:0; transform:translateY(6px); pointer-events:none; }
+
+  /* ---------- 컴포넌트 ---------- */
+  .card-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:18px; }
+  .card{ background:var(--bg-subtle); border:1px solid var(--line); border-radius:var(--radius); padding:22px; }
+  .card-title{ font-weight:700; font-size:16px; margin:0 0 8px; color:var(--ink); }
+  .card-desc{ font-size:14px; color:var(--ink-soft); line-height:1.6; margin:0; }
+
+  .compare{ display:grid; grid-template-columns:1fr 1fr; gap:20px; flex:1; min-height:0; }
+  .compare-col{ border-radius:var(--radius); padding:24px; border:1px solid var(--line); overflow:auto; }
+  .compare-a{ background:var(--bg-subtle); }
+  .compare-b{ background:var(--accent-soft); border-color:var(--accent); }
+  .compare-label{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); margin:0 0 10px; }
+  .compare-b .compare-label{ color:var(--accent); }
+  .compare-col ul{ margin:0; padding-left:18px; }
+  .compare-col li{ margin-bottom:8px; font-size:14px; line-height:1.6; }
+
+  .timeline{ display:flex; align-items:flex-start; gap:0; padding-top:14px; }
+  .timeline-step{ flex:1; position:relative; padding:0 16px; }
+  .timeline-step::before{ content:''; position:absolute; top:-14px; left:16px; width:10px; height:10px; border-radius:50%; background:var(--accent); }
+  .timeline-step::after{ content:''; position:absolute; top:-10px; left:calc(16px + 10px); right:-16px; height:2px; background:var(--line); }
+  .timeline-step:last-child::after{ display:none; }
+  .timeline-step-title{ font-weight:700; font-size:14px; margin:16px 0 6px; color:var(--ink); }
+  .timeline-step-desc{ font-size:13px; color:var(--ink-soft); line-height:1.6; }
+
+  .flow{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .flow-step{ background:var(--bg-subtle); border:1px solid var(--line); border-radius:12px; padding:16px 20px; font-weight:700; font-size:15px; color:var(--ink); text-align:center; }
+  .flow-step.is-accent{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+  .flow-arrow{ color:var(--ink-faint); font-size:20px; }
+
+  .hierarchy{ font-size:15px; line-height:2; color:var(--ink-soft); }
+  .hierarchy ul{ list-style:none; margin:0; padding-left:22px; border-left:1px dashed var(--line); }
+  .hierarchy > ul{ padding-left:0; border-left:none; }
+  .hierarchy li::before{ content:'→ '; color:var(--accent); font-weight:700; }
+
+  .stat-row{ display:flex; gap:48px; }
+  .stat-big .num{ font-size:52px; font-weight:800; color:var(--accent); line-height:1; }
+  .stat-big .label{ font-size:14px; color:var(--ink-faint); margin-top:8px; }
+
+  .quote-box{ border-left:4px solid var(--accent); background:var(--accent-soft); padding:20px 26px; font-size:19px; font-weight:600; color:var(--ink); border-radius:0 12px 12px 0; }
+
+  .code-block{ background:#1b1d23; color:#e6e7ec; font-family:var(--font-mono); font-size:14px; line-height:1.6; padding:18px 20px; border-radius:12px; overflow-x:auto; white-space:pre; }
+
+  .checklist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .checklist li{ padding-left:28px; position:relative; font-size:15px; color:var(--ink-soft); }
+  .checklist li::before{ content:'✓'; position:absolute; left:0; color:var(--good); font-weight:700; }
+
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
+  .table-wrap table{ border-collapse:collapse; width:100%; font-size:14px; }
+  .table-wrap th, .table-wrap td{ padding:12px 16px; border-bottom:1px solid var(--line); text-align:left; }
+  .table-wrap th{ background:var(--bg-subtle); font-weight:700; color:var(--ink); }
+  .table-wrap tr:last-child td{ border-bottom:none; }
+
+  .callout{ border-radius:12px; padding:16px 20px; font-size:14px; line-height:1.6; border:1px solid transparent; }
+  .callout-label{ font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 6px; display:block; }
+  .callout-note{ background:var(--bg-subtle); border-color:var(--line); color:var(--ink-soft); }
+  .callout-warn{ background:var(--warn-soft); border-color:#f0c893; color:var(--warn); }
+  .callout-example{ background:var(--accent-soft); border-color:#c7d2fb; color:var(--ink); }
+  .callout-conclusion{ background:var(--ink); color:#fff; }
+
+  /* 퀴즈 */
+  .quiz{ display:flex; flex-direction:column; gap:16px; }
+  .quiz-q{ font-size:18px; font-weight:700; color:var(--ink); }
+  .quiz-options{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .quiz-option{ text-align:left; padding:14px 18px; border-radius:12px; border:1px solid var(--line); background:var(--bg); font-size:14px; color:var(--ink-soft); cursor:pointer; font-family:inherit; }
+  .quiz-option:hover:not(:disabled){ border-color:var(--accent); color:var(--ink); }
+  .quiz-option:disabled{ cursor:default; }
+  .quiz-option.is-correct{ background:var(--good-soft); border-color:var(--good); color:var(--good); font-weight:700; }
+  .quiz-option.is-wrong{ background:var(--bad-soft); border-color:var(--bad); color:var(--bad); }
+  .quiz-reveal{ display:none; background:var(--bg-subtle); border-radius:12px; padding:16px 20px; border:1px solid var(--line); }
+  .quiz.answered .quiz-reveal{ display:block; }
+  .quiz-answer{ font-weight:700; color:var(--good); margin:0 0 6px; font-size:14px; }
+  .quiz-explain{ font-size:14px; color:var(--ink-soft); line-height:1.6; margin:0; }
+
+  /* ---------- 하단 컨트롤 ---------- */
+  .controls{ flex:0 0 auto; height:60px; display:flex; align-items:center; justify-content:center; gap:14px; background:var(--bg); border-top:1px solid var(--line); }
+  .ctrl-btn{ width:36px; height:36px; border-radius:999px; border:1px solid var(--line); background:var(--bg); color:var(--ink-soft); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .ctrl-btn:hover:not(:disabled){ background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+  .ctrl-btn:disabled{ opacity:.35; cursor:default; }
+  .page-indicator{ font-size:13px; color:var(--ink-faint); min-width:64px; text-align:center; font-variant-numeric:tabular-nums; }
+
+  @media (max-width: 640px){
+    .controls{ gap:8px; }
+    .ctrl-btn{ width:32px; height:32px; }
+  }
+</style>
+<style>
+  /* D14 추가 — 앱 캡처(템플릿 토큰만 사용) */
+  .shot{ display:block; max-width:100%; max-height:452px; margin:0 auto; border:1px solid var(--line); border-radius:10px; object-fit:contain; }
+  .shot-cap{ font-size:13px; color:var(--ink-faint); line-height:1.6; margin:0; }
+  .mock-tag{ display:inline-block; background:var(--warn-soft); color:var(--warn); border:1px solid #f0c893; border-radius:999px; padding:1px 10px; font-size:12px; font-weight:700; margin-right:6px; }
+  .flow-step small{ font-weight:500; color:var(--ink-soft); font-size:12px; }
+  .slide-body a{ color:var(--accent); }
+  .slide-body > .compare{ flex:0 0 auto; }  /* 비교 상자는 내용 높이만큼만 — 남는 공간까지 늘리지 않는다 */
+  .shot{ max-height:470px; }
+</style>
+
+<div class="deck" id="deck">
+  <div class="topbar">
+    <div class="topbar-title" id="deckTitle">Jev: 확률로 다음 작업을 고르는 AI</div>
+    <div class="topbar-section" id="sectionLabel"></div>
+    <div class="topbar-progress"><div class="topbar-progress-bar" id="progressBar"></div></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="frame" id="frame">
+
+      <!-- SLIDES START: 원고 = docs/source/Jev_60min_Lecture_KO.md (D14 — 엑셀 실무자 대상 · 앱 캡처는 모의 판단) -->
+
+      <section class="slide cover" data-section="시작">
+        <div class="cover-kicker">60분 강의 · 엑셀 실무자를 위한 확률 기초</div>
+        <h1 class="cover-title">Jev: 확률로<br><span class="hl">다음 작업</span>을 고르는 AI</h1>
+        <p class="cover-sub">엑셀 파일을 받았을 때 「무엇부터 할까」는 확률로 고르고, 계산과 확인은 코드가 맡는 구조를 예제 숫자로 따라갑니다.</p>
+        <div class="cover-hint">→ 또는 Space로 시작 · 화면 속 앱 캡처는 모두 모의 판단(MOCK)입니다</div>
+      </section>
+
+      <section class="slide" data-section="시작">
+        <div class="slide-kicker">오늘의 순서</div>
+        <h2 class="slide-title">60분을 여섯 구간으로 나눠 <span class="hl">한 파일</span>을 끝까지 따라간다</h2>
+        <div class="slide-body" style="justify-content:center;">
+          <div class="timeline">
+            <div class="timeline-step"><div class="timeline-step-title">00–06분 · 역할 나누기</div><div class="timeline-step-desc">Jev · 파이썬 · 규칙이 각각 맡는 일</div></div>
+            <div class="timeline-step"><div class="timeline-step-title">06–18분 · 확률로 읽기</div><div class="timeline-step-desc">상태 · 분포 · 조건부 · 평균과 분산</div></div>
+            <div class="timeline-step"><div class="timeline-step-title">18–30분 · 세 가지 질문</div><div class="timeline-step-desc">Choice · Score · Noul · 보정</div></div>
+            <div class="timeline-step"><div class="timeline-step-title">30–42분 · 한 단계씩</div><div class="timeline-step-desc">실행 → 새 상태 → 다시 판단 · 위험 조정</div></div>
+            <div class="timeline-step"><div class="timeline-step-title">42–57분 · 엑셀 업무에</div><div class="timeline-step-desc">153개 카드 · 갈라지는 경로 · 평가</div></div>
+            <div class="timeline-step"><div class="timeline-step-title">57–60분 · 정리</div><div class="timeline-step-desc">내 업무에 적용할 판단 하나</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="시작">
+        <div class="slide-kicker">오늘의 예제 (가상 자료)</div>
+        <h2 class="slide-title">합계를 내 달라는 파일인데, <span class="hl">바로 더할 수가 없다</span></h2>
+        <div class="slide-body">
+          <div class="table-wrap" style="max-width:520px;">
+            <table><thead><tr><th>거래번호</th><th>부서</th><th>사용처</th><th>금액</th></tr></thead>
+              <tbody><tr><td>T0001</td><td>총무팀</td><td>행사 대관</td><td>98,300원</td></tr><tr><td>T0002</td><td>인사팀</td><td>출장 교통비</td><td>128,700원</td></tr><tr><td>T0003</td><td>재무팀</td><td>출장 교통비</td><td>29,700원</td></tr><tr><td colspan="4" style="color:var(--ink-faint);">… 1,000행 · 부서 10곳 (가상 자료 example_a_money_text_1000.csv)</td></tr></tbody></table>
+          </div>
+          <div class="callout callout-example" data-step="1">
+            <span class="callout-label">무엇이 문제인가</span>
+            금액 1,000개가 모두 <b>「98,300원」 같은 글자</b>로 저장돼 있다. 엑셀 SUM 을 걸면 0 이 나온다. 숫자로 바꾸는 작업이 먼저다.
+          </div>
+          <div class="quote-box" data-step="2">그렇다면 「무엇부터 할지」는 누가 고르고, 1,000개 금액의 합계는 누가 계산해야 할까?</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="역할 나누기">
+        <div class="slide-kicker">1 · Jev 의 역할</div>
+        <h2 class="slide-title"><span class="hl">고르는 일</span>은 Jev, <span class="hl">계산하는 일</span>은 파이썬이 맡는다</h2>
+        <p class="slide-lede">Jev 는 현재 상황에 대해 미리 정한 질문에 답한다. 프로그램은 그 답으로 다음 작업을 고른다.</p>
+        <div class="slide-body" style="justify-content:center;">
+          <div class="flow">
+            <div class="flow-step">파일 분석 코드<br><small>열 · 자료형 · 행 수 · 오류를 잰다</small></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step is-accent">Jev<br><small>선택 · 수준 · 예/아니오 평가</small></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">정책 코드<br><small>허용 작업 · 중단 조건 검사</small></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">실행 코드<br><small>변환 · 집계 · 차트</small></div>
+          </div>
+          <div class="callout callout-conclusion">
+            <span class="callout-label">핵심</span>
+            1,000건의 금액을 더하는 일(합계 148,982,900원)은 파이썬이 한다. Jev 는 「지금 무엇이 먼저인가」를 평가한다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="역할 나누기">
+        <div class="slide-kicker">2 · 참고 수식의 자리</div>
+        <h2 class="slide-title">평균−분산 수식은 Jev 의 출력이 아니라 <span class="hl">우리 앱의 설계</span> 자리에 놓는다</h2>
+        <div class="slide-body">
+          <div class="compare">
+            <div class="compare-col compare-a">
+              <div class="compare-label">공식 문서로 확인한 Jev</div>
+              <ul><li>입력 = <b>state</b>(상황) + <b>questions</b>(질문)</li><li>출력 = Choice · Score · Noul 세 형식의 구조화된 답</li><li>행동 뒤 상태를 알려 주는 전이 모형을 자동으로 준다는 근거는 없다</li></ul>
+            </div>
+            <div class="compare-col compare-b">
+              <div class="compare-label">우리 프로그램이 설계하는 것</div>
+              <ul><li>상태 s · 행동 a · 전이 — 강화학습(MDP)의 개념을 빌려 쓴다</li><li>E[R] − β·Var(R) — 보상과 확률을 따로 정의하면 정책 코드에서 계산할 수 있다</li></ul>
+            </div>
+          </div>
+          <div class="callout callout-warn">
+            <span class="callout-label">이렇게 소개하지 않는다</span>
+            「Jev 는 평균과 분산 두 함수를 출력하는 모델」✗ · Jev 를 임의의 풀네임으로 늘려 부르기 ✗
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="역할 나누기">
+        <div class="slide-kicker">3 · 상태(state)</div>
+        <h2 class="slide-title">상태는 모델이 <span class="hl">추측할 것을 줄여 주는</span> 메모다</h2>
+        <div class="slide-body">
+          <div class="compare" style="grid-template-columns:1.1fr 1fr;">
+            <pre class="code-block" style="margin:0;">{
+  "goal": "부서별 금액 합계",
+  "grain": "거래 1건",
+  "key": "거래번호",
+  "rows": 1000,
+  "amount_unit": "KRW",
+  "amount_type": "통화 문자가 포함된 문자열",
+  "completed_steps": ["A03"],
+  "available_steps": ["C03", "C05", "D03", "D01"]
+}</pre>
+            <ul class="checklist">
+              <li><b>목표</b> — 돈의 합계인가, 참여자 수인가</li>
+              <li><b>한 행의 의미</b> — 학생 한 명인가, 신청 한 건인가</li>
+              <li><b>단위 · 자료형</b> — 원 단위 글자인지 숫자인지</li>
+              <li><b>한 일과 할 수 있는 일</b> — 지금 후보 작업</li>
+            </ul>
+          </div>
+          <div class="callout callout-warn">
+            <span class="callout-label">놓치기 쉬운 점</span>
+            Jev 는 지난 요청을 자동으로 기억한다고 가정하지 않는다. 다음 판단에 필요한 이력은 프로그램이 저장했다가 다시 보낸다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="역할 나누기">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">역할 나누기 확인</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">금액이 「98,300원」 같은 글자인데 Jev 가 「I01 그룹 집계」를 1순위로 골랐다. 프로그램은 어떻게 해야 할까?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">확률이 가장 높으니 I01 을 그대로 실행한다</button>
+              <button class="quiz-option" data-correct="true">코드가 「값 열이 숫자가 아님」을 확인하고 I01 실행을 막는다</button>
+              <button class="quiz-option" data-correct="false">Jev 에게 합계를 직접 계산해 달라고 한다</button>
+              <button class="quiz-option" data-correct="false">확률이 0.9 이상일 때만 실행한다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 코드가 확인하고 실행을 막는다</div>
+              <div class="quiz-explain">「숫자 열이 있는가」처럼 확실히 잴 수 있는 조건은 코드가 판정한다. Jev 의 확률은 허용된 후보 사이에서 고를 때 쓰고, 확정 조건을 확률로 덮지 않는다. 합계 계산도 코드의 일이다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="확률로 읽기">
+        <div class="slide-kicker">4 · 확률분포</div>
+        <h2 class="slide-title">확률분포는 다음 작업 후보들에게 <span class="hl">1을 나눠 준 것</span>이다</h2>
+        <div class="slide-body">
+          <div class="compare" style="grid-template-columns:1fr 1fr;">
+            <div class="table-wrap">
+              <table><thead><tr><th>다음 작업 Y</th><th>확률</th></tr></thead>
+                <tbody><tr><td>C03 문자 숫자 정리</td><td>0.70</td></tr><tr><td>D03 중복 검출</td><td>0.20</td></tr><tr><td>I01 그룹 집계</td><td>0.10</td></tr><tr><td><b>합계</b></td><td><b>1.00</b></td></tr></tbody></table>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <p>확률변수 Y = 아직 확정되지 않은 결과. 각 확률은 0~1, 서로 겹치지 않는 선택지를 모두 더하면 1.</p>
+              <p class="shot-cap">실제 Jev 응답이 아닌 교육용 예시다.</p>
+            </div>
+          </div>
+          <div class="callout callout-warn">
+            <span class="callout-label">함정</span>
+            C03 의 「3」과 D03 의 「3」을 평균 내는 것은 의미가 없다. 선택지 이름은 <b>이름표(명목척도)</b>일 뿐 크기가 없다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="확률로 읽기">
+        <div class="slide-kicker">5 · 조건부확률</div>
+        <h2 class="slide-title">같은 질문이라도 <span class="hl">조건(상태)이 바뀌면</span> 답이 바뀐다</h2>
+        <div class="slide-body">
+          <div class="quote-box" style="font-family:var(--font-mono);font-size:17px;">p<sub>k</sub> = P<sub>θ</sub>( Y = k | state, question, criteria ) <span class="shot-cap" style="font-family:inherit;">— 세로줄 오른쪽 = 이미 알고 있는 조건 (개념 표기)</span></div>
+          <div class="compare">
+            <div class="compare-col compare-a"><div class="compare-label">조건: 금액이 글자</div><ul><li>정리(C03)가 먼저일 가능성이 크다</li></ul></div>
+            <div class="compare-col compare-b"><div class="compare-label">조건: 금액이 숫자로 바뀜</div><ul><li>집계(I01)가 먼저일 가능성이 크다</li></ul></div>
+          </div>
+          <div class="callout callout-warn">
+            <span class="callout-label">다른 두 숫자</span>
+            「C03 을 고를 확률 0.7」 ≠ 「C03 프로그램이 성공할 확률 0.7」. 실행 성공률은 실행 기록이라는 별도 증거가 있어야 안다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="확률로 읽기">
+        <div class="slide-kicker">6 · 기댓값과 분산</div>
+        <h2 class="slide-title">평균이 높아도 <span class="hl">흔들림(분산)</span>까지 보면 선택이 달라질 수 있다</h2>
+        <div class="slide-body">
+          <div class="compare">
+            <div class="compare-col compare-a"><div class="compare-label">안정형 A — 항상 6점</div>
+              <div class="stat-row"><div class="stat-big"><div class="num">6</div><div class="label">평균 E[X]</div></div><div class="stat-big"><div class="num">0</div><div class="label">분산 Var(X)</div></div></div></div>
+            <div class="compare-col compare-b"><div class="compare-label">변동형 B — 0점 또는 14점, 반반</div>
+              <div class="stat-row"><div class="stat-big"><div class="num">7</div><div class="label">평균 E[X]</div></div><div class="stat-big"><div class="num">49</div><div class="label">분산 Var(X)</div></div></div></div>
+          </div>
+          <pre class="code-block" style="margin:0;" data-step="1">평균  E[X] = Σ p·x        → 0×0.5 + 14×0.5 = 7
+분산  Var(X) = Σ p·(x−μ)² → 0.5×(0−7)² + 0.5×(14−7)² = 49   (표준편차 = √49 = 7점)</pre>
+          <div class="callout callout-note" data-step="2">분산은 좋은 쪽으로 크게 튀는 것도 벌점으로 센다. 큰 실패만 따로 다루려면 별도의 손실 규칙이 필요하다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="확률로 읽기">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">확률분포 읽기 확인</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">다음 작업 분포가 C03 0.70 · D03 0.20 · I01 0.10 이다. 올바른 해석은?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">I01 은 이 파일에 전혀 필요 없는 작업이다</button>
+              <button class="quiz-option" data-correct="false">C03 을 실행하면 70% 확률로 성공한다</button>
+              <button class="quiz-option" data-correct="true">지금 가장 먼저 할 작업으로 C03 이 가장 적절하다고 평가했다</button>
+              <button class="quiz-option" data-correct="false">번호 평균 (3+3+1)÷3 에 해당하는 작업이 기대 작업이다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 지금 먼저 할 작업으로 C03 이 가장 적절하다는 평가</div>
+              <div class="quiz-explain">질문이 「지금 먼저 할 작업」이므로 확률도 그 질문에 대한 평가다. I01 은 C03 뒤에 필요할 수 있고(전체 과정 ≠ 첫 단계), 실행 성공률은 별도 증거가 필요하다. 이름표 번호의 평균은 의미가 없다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="세 가지 질문">
+        <div class="slide-kicker">7–8 · 질문의 세 가지 모양</div>
+        <h2 class="slide-title">Jev 에게는 <span class="hl">세 가지 모양</span>의 질문만 한다</h2>
+        <div class="slide-body">
+          <div class="card-grid">
+            <div class="card"><div class="card-title">Choice — 하나 고르기</div><p class="card-desc">미리 정한 선택지 중 하나. 응답 = 최대 확률의 <b>choice</b> · 전체 <b>probabilities</b> · 분포를 요약한 <b>confidence</b>.<br><br>예) 먼저 다룰 영역은 구조 해석 · 표준화 · 집계 중 무엇?</p></div>
+            <div class="card"><div class="card-title">Score — 수준 매기기</div><p class="card-desc">순서가 있는 수준(2~10개) 중 어디쯤인가. 응답 = 수준 번호의 확률 가중평균 <b>score</b> · 분포 · confidence.<br><br>예) 집계 준비도는 0 · 1 · 2 중 어디?</p></div>
+            <div class="card"><div class="card-title">Noul — 예/아니오</div><p class="card-desc">「예」일 확률 하나. 별도 confidence 는 없다.<br><br>예) 사용자가 집계 기준을 밝혔는가? → noul = 0.8</p></div>
+          </div>
+          <div class="callout callout-note">여러 문제가 함께 있으면 영역마다 Noul 을 따로 묻는다. 「표준화 필요」와 「중복 검토 필요」는 둘 다 참일 수 있어 더해서 1이 될 필요가 없다. 단, 따로 평가했다고 실제 사건들이 통계적으로 독립이라는 뜻은 아니다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="세 가지 질문">
+        <div class="slide-kicker">8 · Score</div>
+        <h2 class="slide-title">Score 1.10 은 정답률이 아니라 <span class="hl">정해 둔 수준 사이의 위치</span>다</h2>
+        <div class="slide-body">
+          <div class="compare" style="grid-template-columns:1.25fr 1fr;">
+            <div class="table-wrap">
+              <table><thead><tr><th>수준</th><th>집계 준비도</th><th>교육용 확률</th></tr></thead>
+                <tbody><tr><td>0</td><td>필수 열이 없음</td><td>0.10</td></tr><tr><td>1</td><td>열은 있으나 문자 숫자를 정리해야 함</td><td>0.70</td></tr><tr><td>2</td><td>숫자형 열이 준비돼 집계 가능</td><td>0.20</td></tr></tbody></table>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <pre class="code-block" style="margin:0;">Score = 0×0.10 + 1×0.70 + 2×0.20
+      = 1.10</pre>
+              <div class="callout callout-warn" data-step="1"><span class="callout-label">이렇게 읽지 않는다</span>정답률 110% ✗ · 준비 55% 완료 ✗</div>
+            </div>
+          </div>
+          <div class="callout callout-note" data-step="2">같은 Score 1 이라도 분포는 다를 수 있다 — (0, 1, 0)은 분산 0, (0.5, 0, 0.5)는 분산 1. 수준 간격은 우리가 정한 것이라 「2가 1의 두 배 가치」도 아니다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="세 가지 질문">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">Score 읽기 확인</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">집계 준비도를 수준 0 · 1 · 2 로 물었더니 Score 1.5 가 나왔다. 올바른 해석은?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">집계 준비가 75% 끝났다</button>
+              <button class="quiz-option" data-correct="false">이 판단이 맞을 확률이 75%다</button>
+              <button class="quiz-option" data-correct="true">수준 번호의 확률 가중평균으로, 수준 1과 2 사이에 있다</button>
+              <button class="quiz-option" data-correct="false">수준 2의 절반만큼 준비됐다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 수준 번호의 확률 가중평균 — 1과 2 사이</div>
+              <div class="quiz-explain">Score 는 우리가 정한 수준 번호에 확률을 곱해 더한 값이다. 수준 사이의 간격이 같은 가치라는 보장이 없으니 %로 바꾸거나 비율로 읽지 않는다. 판단이 맞을 확률은 실제 결과(라벨)로 따로 확인해야 한다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="세 가지 질문">
+        <div class="slide-kicker">9 · 정확도와 보정</div>
+        <h2 class="slide-title">정답률이 같아도 <span class="hl">확신의 크기</span>가 맞는지는 따로 잰다</h2>
+        <p class="slide-lede">「예」라고 예측한 10건 중 실제로 8건이 예였다. 두 모델 모두 0.5 기준으로는 80% 정확하다.</p>
+        <div class="slide-body">
+          <div class="stat-row">
+            <div class="stat-big"><div class="num">0.16</div><div class="label">모두 0.8 이라고 예측 — (8×0.2² + 2×0.8²) ÷ 10</div></div>
+            <div class="stat-big"><div class="num" style="color:var(--bad);">0.1961</div><div class="label">모두 0.99 라고 예측 — (8×0.01² + 2×0.99²) ÷ 10</div></div>
+          </div>
+          <p>이진 Brier = (1/N) Σ (p − y)², y 는 0 또는 1. <b>작을수록 좋다.</b> 이 집합에서 0.99 는 과한 확신이다.</p>
+          <div class="callout callout-warn">
+            <span class="callout-label">confidence 읽는 법</span>
+            Jev 의 confidence 는 응답 확률분포를 요약한 통계량이다. <b>confidence 0.9 ≠ 실제 정답률 90%.</b> 정답률은 실제 결과로 확인한다. 10건 예시는 설명용이지 성능 평가가 아니다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="세 가지 질문">
+        <div class="slide-kicker">10 · RLCD 와 공개된 범위</div>
+        <h2 class="slide-title">「잘 고르고, 확신도 정직하게」 — 공개된 것과 <span class="hl">확인 못 한 것</span>을 나눠 말한다</h2>
+        <div class="slide-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>구분</th><th>발표에서 말할 내용</th></tr></thead>
+              <tbody>
+                <tr><td>확인한 제품 동작</td><td>세 가지 질문 형식 · 구조화된 응답 · 확률분포</td></tr>
+                <tr><td>공급자의 학습 설명</td><td>RLCD(Reinforcement Learning for Calibrated Decisions) — 보정된 판단을 지향</td></tr>
+                <tr><td>교육용 통계 설명</td><td>Brier · 기댓값 · 분산 · 엔트로피</td></tr>
+                <tr><td>확인하지 못한 것</td><td>정확한 전체 학습 손실 · 상세 구조 · 재현 가능한 학습 절차</td></tr>
+              </tbody></table>
+          </div>
+          <div class="callout callout-warn"><span class="callout-label">단정하지 않는다</span>「Jev 는 Brier 하나로 학습한다」 ✗ · 「Jev 의 공식 손실은 평균−분산이다」 ✗ · 높은 confidence 는 정답 보증이 아니다</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="세 가지 질문">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">보정과 confidence 확인</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">모델 X 는 모든 사례에 0.8, 모델 Y 는 0.99 를 줬다. 10건 중 8건이 실제로 「예」였다. 옳은 것은?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">Y 가 더 확신하므로 더 좋은 모델이다</button>
+              <button class="quiz-option" data-correct="false">정확도가 같으니 두 모델은 완전히 같다</button>
+              <button class="quiz-option" data-correct="true">정확도는 같지만 Y 는 과하게 확신해 Brier 가 더 나쁘다</button>
+              <button class="quiz-option" data-correct="false">Brier 는 클수록 좋으니 Y 가 낫다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 정확도는 같지만 Y 가 과신 — Brier 0.1961 &gt; 0.16</div>
+              <div class="quiz-explain">둘 다 80% 를 맞히지만, 실제 빈도 0.8 에 가까운 확률을 말한 X 가 더 잘 보정됐다. 자동화 프로그램은 확률을 믿고 결정을 내리므로, 모르는데 99% 라고 말하는 모델은 잘못된 자동 실행을 부른다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">11 · 상태 · 행동 · 전이</div>
+        <h2 class="slide-title">실행이 상태를 바꾸고, <span class="hl">바뀐 상태에서 다시</span> 고른다</h2>
+        <div class="slide-body" style="justify-content:center;">
+          <div class="flow">
+            <div class="flow-step">s₀<br><small>금액이 글자인 거래 표</small></div>
+            <div class="flow-arrow">→ a₀ C03 →</div>
+            <div class="flow-step">s₁<br><small>금액이 숫자로 바뀐 표</small></div>
+            <div class="flow-arrow">→ a₁ I01 →</div>
+            <div class="flow-step is-accent">s₂<br><small>부서별 집계표</small></div>
+          </div>
+          <p class="small" style="margin:0;">핵심 두 단계만 그렸다. 1000행 파일에서 앱은 그 앞에 점검 단계(C05 · D03 · D01)를 먼저 거친다 — 뒤의 앱 캡처.</p>
+          <p>s<sub>t+1</sub> = T(s<sub>t</sub>, a<sub>t</sub>, <b>실행 결과</b>) — 전이를 만드는 것은 실제 실행 코드와 그 검증이다. 정책 π = 상태와 판단을 보고 다음 허용 작업을 고르는 규칙.</p>
+          <div class="callout callout-warn">
+            <span class="callout-label">학습과 혼동하지 않기</span>
+            Jev 를 여러 번 부르는 것은 모델이 학습하는 것이 아니다. 프로그램이 저장한 이력으로 <b>상태를 갱신</b>하는 것과 모델 가중치를 <b>다시 학습</b>하는 것은 별개다.
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">12 · 위험을 고려한 선택</div>
+        <h2 class="slide-title">β 를 키울수록 <span class="hl">흔들리는 선택</span>을 피한다</h2>
+        <div class="slide-body">
+          <div class="quote-box" style="font-family:var(--font-mono);font-size:17px;">U(a | s) = E[R | s, a] − β · Var(R | s, a) &nbsp;&nbsp;→&nbsp;&nbsp; U 가 가장 큰 a 를 고른다</div>
+          <div class="compare" style="grid-template-columns:1.3fr 1fr;">
+            <div class="table-wrap">
+              <table><thead><tr><th>β</th><th>A 효용 (6, 분산 0)</th><th>B 효용 (7, 분산 49)</th><th>선택</th></tr></thead>
+                <tbody><tr><td>0</td><td>6</td><td>7</td><td>B</td></tr><tr><td>0.01</td><td>6</td><td>6.51</td><td>B</td></tr><tr><td>0.05</td><td>6</td><td>4.55</td><td><b>A</b></td></tr></tbody></table>
+            </div>
+            <div class="stat-big" data-step="1"><div class="num">1/49</div><div class="label">두 선택의 효용이 같아지는 β</div></div>
+          </div>
+          <div class="callout callout-note" data-step="2">한 단계씩 욕심껏 최대화한다고 전체 경로가 최적이 되지는 않는다. 그래서 엑셀 앱은 먼저 <b>허용 조건과 오류 비용 규칙</b>으로 만들고 검증한다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">β 와 단위 확인</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">보상 단위를 「점」에서 100배 큰 단위로 바꿨다(7점 → 700). 같은 순위를 유지하려면 β 는?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">그대로 둔다 — β 는 단위와 관계없다</button>
+              <button class="quiz-option" data-correct="false">100배로 키운다</button>
+              <button class="quiz-option" data-correct="true">1/100 로 줄인다</button>
+              <button class="quiz-option" data-correct="false">1/10000 로 줄인다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 1/100 로 줄인다</div>
+              <div class="quiz-explain">평균은 100배, 분산은 제곱이라 10,000배가 된다. U = E − β·Var 전체가 100배가 되려면 β·Var 도 100배여야 하므로 β 는 1/100 이 된다. β 를 그대로 두면 분산 벌점만 100배 무거워져 선택이 바뀐다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">13 · 통계 실습</div>
+        <h2 class="slide-title">값을 직접 바꿔 보면 <span class="hl">프로그램은 확률을 배우지 않고 계산만</span> 한다는 게 보인다</h2>
+        <div class="slide-body">
+          <div class="compare">
+            <div class="compare-col compare-a"><div class="compare-label">손으로 바꿔 보기 — B 의 14점을 16점으로</div>
+              <ul><li data-step="1">B 평균 = 8, 분산 = 64</li><li data-step="2">β = 0.05 → U(B) = 8 − 0.05×64 = <b>4.8</b></li><li data-step="3">여전히 U(A) = 6 이 커서 <b>A</b> 를 고른다</li></ul></div>
+            <div class="compare-col compare-b"><div class="compare-label">자동처리할까, 사람이 볼까</div>
+              <ul><li>틀리면 손실 100 · 검토 비용 5 라고 가정</li><li>p_correct 0.8 → 기대손실 (1−0.8)×100 = <b>20</b> → 검토</li><li>p_correct 0.98 → 기대손실 <b>2</b> → 자동처리 후보</li></ul></div>
+          </div>
+          <div class="callout callout-example"><span class="callout-label">직접 해 보기</span>앱의 <a href="http://127.0.0.1:8765/learn" target="_blank" rel="noopener">배우기(/learn) → 통계 실습</a>에서 β · 확률 · 비용을 움직인다(run.bat 으로 앱을 켠 뒤). 터미널이면 <code>py -3 jev_stats_demo.py</code>. p_correct 는 그 업무에서 검증된 정답확률이라는 가정이다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">14 · 앱에서 보기 ① 첫 판단</div>
+        <h2 class="slide-title">1000행 파일을 올리면 <span class="hl">C03(0.39)</span>이 1순위 후보 — 그런데 ★ 추천은 C05(0.19)</h2>
+        <div class="slide-body">
+          <img class="shot" src="img/roadmap.png" alt="데이터 활용 로드맵 앱 — 1000행 파일 첫 판단 분기 그래프(모의 판단)">
+          <p class="shot-cap"><span class="mock-tag">모의 판단(MOCK)</span> 앱의 로컬 규칙(policy.v1)이 만든 분포다 — 실제 Jev 응답도, Jev 성능도 아니다. 그래프의 숫자 = 그 단계의 선택지 확률. ★ 가 왜 0.39 가 아닌 0.19 에 붙는지는 다음 장.</p>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">14 · 앱에서 보기 ①-2 경로 추천 점수</div>
+        <h2 class="slide-title">★ 추천은 한 단계 확률이 아니라 <span class="hl">경로 추천 점수</span>로 고른다</h2>
+        <div class="slide-body">
+          <div class="quote-box" style="text-align:center;">경로 추천 점수 = ⁿ√( p₁ × p₂ × … × pₙ ) &nbsp;—&nbsp; 경로에 있는 <b>각 단계 선택지 확률의 기하평균</b></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>1000행 첫 판단의 경로</th><th>단계마다의 선택지 확률 (끝 = 목표 도달도 한 단계)</th><th>경로 추천 점수</th></tr></thead>
+              <tbody>
+                <tr><td><b>★ C05 → C03 → I01 → 끝</b></td><td>0.1897 · 0.4787 · 0.4762 · 0.2756</td><td><b>0.3304</b></td></tr>
+                <tr><td>C03 → I01 → 끝</td><td>0.3879 · 0.3774 · 0.2349</td><td>0.3252</td></tr>
+              </tbody></table>
+          </div>
+          <ul class="checklist">
+            <li>C03 을 먼저 하면 다음 판단에 C05 · D03 · D01 이 남아 I01 이 0.377 로 나뉜다. C05 를 먼저 하면 C03 이 0.479 로 뚜렷해진다</li>
+            <li>곱을 그대로 쓰면 단계가 많은 경로일수록 작아진다 → n제곱근으로 단계 수를 맞춘다</li>
+            <li>차이 0.005 는 사실상 동률이다 — 「C05 가 확실히 낫다」가 아니다</li>
+          </ul>
+          <div class="callout callout-warn"><span class="callout-label">Jev 의 수식이 아니다</span><span class="mock-tag">모의 판단(MOCK)</span> Jev 는 단계마다 선택지 확률(Choice)만 준다. 기하평균은 이 앱이 경로를 비교하려고 정한 점수(명세 §9)이고, 성공확률이 아니다. 위 확률은 앱의 로컬 규칙이 만든 값이다 — 실제 Jev 응답이 아니다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">14 · 앱에서 보기 ② 실행 조건</div>
+        <h2 class="slide-title">실행 버튼은 <span class="hl">코드가 판정한 조건 6가지</span>를 모두 통과해야 켜진다</h2>
+        <div class="slide-body">
+          <img class="shot" src="img/node.png" alt="C03 노드 상세 — 실행 조건 6가지와 선택 근거 규칙(모의 판단)">
+          <p class="shot-cap"><span class="mock-tag">모의 판단(MOCK)</span> 입력 계약 · 필요한 인자 · 사전조건 · 실행기 구현 · 실행 환경 · 허용된 작업 — 확률과 관계없이 하나라도 안 되면 실행하지 않는다.</p>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">14 · 앱에서 보기 ③ 실행 뒤 다시 판단</div>
+        <h2 class="slide-title">★ 를 따라 한 단계씩 실행하면 <span class="hl">새 상태에서 계획이 다시</span> 만들어진다</h2>
+        <div class="slide-body">
+          <img class="shot" src="img/after-runs.png" alt="C05 · D03 · D01 · C03 · I01 실행 뒤 계획 버전 6 — 실선은 실제 실행, 점선은 아직 실행하지 않은 계획(모의 판단)">
+          <p class="shot-cap"><span class="mock-tag">모의 판단(MOCK)</span> 실선 = 실제 실행 · 점선 = 아직 실행하지 않은 계획. C05 → D03 → D01 → C03 → I01 마다 계획 버전이 1 → … → 6 으로 쌓인다(옛 버전은 안 지움).</p>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">14 · 앱에서 보기 ④ 결과 검증</div>
+        <h2 class="slide-title">합계는 파이썬이 내고, <span class="hl">검증(check)이 따로</span> 확인한다</h2>
+        <div class="slide-body">
+          <img class="shot" src="img/run.png" alt="실행 기록 — A03 C05 D03 D01 C03 I01 N02 모두 검증 완료, 부서별 합계 차트(모의 판단)">
+          <p class="shot-cap"><span class="mock-tag">모의 판단(MOCK)</span> 실행 · 검증은 실제 파이썬 — 부서 10곳 · 합계 148,982,900원(CSV 를 따로 더한 값과 같음). 해 보기: 파일 올리기 → <code>example_a_money_text_1000.csv</code> · 키 = 거래번호</p>
+        </div>
+      </section>
+
+      <section class="slide" data-section="한 단계씩">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">다시 판단하는 과정 확인</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">C03 을 실행한 뒤 다시 물었더니 이번엔 I01 이 1순위(0.87)가 됐다. 무슨 일이 일어난 걸까?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">Jev 가 방금 실행 결과로 스스로 재학습했다</button>
+              <button class="quiz-option" data-correct="true">프로그램이 바뀐 상태(금액 = 숫자)를 새 state 로 보냈고, 같은 모델이 새 조건에서 판단했다</button>
+              <button class="quiz-option" data-correct="false">Jev 가 지난 요청을 기억하고 있다가 순서를 바꿨다</button>
+              <button class="quiz-option" data-correct="false">처음 C03 확률이 틀려서 모델이 고쳤다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 새 state 를 보냈고, 같은 모델이 새 조건에서 판단했다</div>
+              <div class="quiz-explain">조건부확률의 조건이 바뀐 것이다. 모델 가중치는 그대로이고, 기억도 프로그램이 저장한 이력을 다시 보낸 것뿐이다. 첫 판단이 틀린 게 아니라 질문의 조건이 달라진 것이다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">15 · 파일을 받으면</div>
+        <h2 class="slide-title">파일이 오면 <span class="hl">코드가 먼저 잰다</span> — 행 수와 합계를 모델에게 세게 하지 않는다</h2>
+        <div class="slide-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>판단 상태에 넣을 것</th><th>왜</th></tr></thead>
+              <tbody>
+                <tr><td>목적(또는 후보 목적)</td><td>돈 합계 · 사람 수 · 변화 비교는 필요한 경로가 다르다</td></tr>
+                <tr><td>한 행의 의미</td><td>학생 중복과 신청 중복을 구별한다</td></tr>
+                <tr><td>실제로 잰 값(프로파일링)</td><td>모델 추정치와 측정값을 구별한다</td></tr>
+                <tr><td>업무 규칙</td><td>분모 · 기간 · 단위 · 중복 정책을 임의로 만들지 않는다</td></tr>
+                <tr><td>후보 작업 카드 · 실행 환경</td><td>정해진 작업 범위 안에서, 실행할 수 있는 것만</td></tr>
+              </tbody></table>
+          </div>
+          <div class="callout callout-note">목적이 비어 있으면 데이터가 지원하는 활용 몇 가지를 제안한다. 유일한 정답 경로를 선언하지 않고, 규칙이 부족하면 「검토 필요」로 멈춘다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">15 · 앱에서 보기</div>
+        <h2 class="slide-title">앱은 올린 파일의 열을 <span class="hl">측정값(measured)</span>으로 먼저 보여 준다</h2>
+        <div class="slide-body">
+          <img class="shot" src="img/home.png" alt="1000행 파일을 올린 뒤 열 측정값 화면(모의 판단)">
+          <p class="shot-cap"><span class="mock-tag">모의 판단(MOCK)</span> 시트 · 표 범위 · 인코딩 · 자료형 후보는 코드가 잰 값이다. 사람은 목적과 업무 규칙(한 행의 의미 · 업무 키 · 단위)을 정한다.</p>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">16 · 153개 카드</div>
+        <h2 class="slide-title">153개 카드는 순서표가 아니라 <span class="hl">작업 메뉴판</span>이다</h2>
+        <div class="slide-body">
+          <div class="stat-row">
+            <div class="stat-big"><div class="num">17</div><div class="label">영역 (A 수집 ~ Q 비정형)</div></div>
+            <div class="stat-big"><div class="num">153</div><div class="label">작업 카드 — 가이드의 설계 개수</div></div>
+            <div class="stat-big"><div class="num">12</div><div class="label">이 앱에서 실행기를 만든 카드</div></div>
+          </div>
+          <ul class="checklist">
+            <li>카드는 <b>레시피의 명세</b>다. 입력 · 출력 · 성공 기준을 읽고 함수를 구현해야 실행할 수 있다</li>
+            <li>A~Q 는 순서가 아니다. 이미 자료를 받았다면 A(수집)를 다시 고를 필요가 없다</li>
+            <li>D03 = 중복 <b>검출</b>, E04 = 정책에 따른 중복 <b>해소</b>. 검출했다고 자동으로 지우지 않는다</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">17 · 갈라지는 활용 경로</div>
+        <h2 class="slide-title">같은 신청 자료도 <span class="hl">목적에 따라</span> 길이 갈라진다</h2>
+        <p class="slide-lede">가상 자료: 신청번호 · 학번 · 부서 · 상태 · 신청일</p>
+        <div class="slide-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>목적</th><th>주요 경로</th><th>먼저 정할 규칙</th></tr></thead>
+              <tbody>
+                <tr><td>부서별 신청 건수</td><td>키 점검 → I01 집계 → N02 차트</td><td>한 행 = 신청 1건</td></tr>
+                <tr><td>실제 참여자 수</td><td>식별자 보존 → I02 중복 제외 개수 → N02</td><td>여러 신청을 한 사람으로 셀지</td></tr>
+                <tr><td>인증률</td><td>검증 → 건수 집계 → H01 비율 → N02</td><td>분자 · 분모와 기간</td></tr>
+                <tr><td>월별 변화</td><td>날짜 정리 → J01 → J03 → N02</td><td>기준 기간 · 미수집과 0 구별</td></tr>
+              </tbody></table>
+          </div>
+          <div class="callout callout-note">실행 전에는 「중복이 0개가 될 것」 같은 결과를 확정하지 않는다. 실제 실행 · 계획상 가능 · 정보 부족 · 미구현을 서로 다르게 표시한다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">비율 계산 확인 (가이드 W02)</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">교과 인증률 50%(30/60), 비교과 인증률 25%(10/40)다. 전체 인증률은?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">37.5% — 두 비율의 평균</button>
+              <button class="quiz-option" data-correct="true">40% — 40/100</button>
+              <button class="quiz-option" data-correct="false">75% — 두 비율의 합</button>
+              <button class="quiz-option" data-correct="false">분모가 달라 알 수 없다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 40% (전체 분자 40 ÷ 전체 분모 100)</div>
+              <div class="quiz-explain">비율의 단순 평균은 두 부서의 크기(60명과 40명)를 무시한다. 전체 비율은 분자끼리, 분모끼리 더해 나눈다. 그래서 H01 같은 비율 작업은 분모 규칙이 정해져야 실행한다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">18 · 경로 탐색</div>
+        <h2 class="slide-title">하나만 고르지 않고 <span class="hl">후보 경로 몇 개를 유지</span>하며 비교한다</h2>
+        <div class="slide-body">
+          <div class="compare" style="grid-template-columns:1fr 1.4fr;">
+            <div class="stat-big"><div class="num">3⁶ = 729</div><div class="label">깊이 6 · 매번 3갈래면 끝 경로 최대 개수</div></div>
+            <ul class="checklist">
+              <li>빔 탐색(beam search) — 상위 몇 개 경로만 남기고 넓힌다(공식 Jev 예제에도 있다)</li>
+              <li>선행조건과 종료 상태가 가지를 줄인다</li>
+              <li>화면엔 상위 3개를 펼치고, 「후보 더 보기」로 넓힌다</li>
+              <li>보이는 경로 = 정한 탐색 범위 안의 후보일 뿐, 모든 가능성이 아니다</li>
+            </ul>
+          </div>
+          <div class="callout callout-note">분류가 끝나도 처리는 끝나지 않는다. 고른 작업을 실제로 실행한 뒤 상태를 다시 재고 새 후보를 만든다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">18 · 세 가지 숫자</div>
+        <h2 class="slide-title">화면의 세 숫자는 <span class="hl">서로 다른 것</span>이다</h2>
+        <div class="slide-body">
+          <div class="card-grid">
+            <div class="card"><div class="card-title">선택지 확률</div><p class="card-desc">지금 질문의 선택지에 대한 모델(또는 모의 규칙)의 평가</p></div>
+            <div class="card"><div class="card-title">경로 추천 점수</div><p class="card-desc">여러 단계를 비교하려고 앱이 정한 점수(이 앱은 각 단계 선택지 확률의 기하평균 — 14 ①-2). 성공확률이 아니다</p></div>
+            <div class="card"><div class="card-title">실제 성공률</div><p class="card-desc">정해진 업무를 반복 실행해서 관측한 비율 — 실행 기록이 있어야 안다</p></div>
+          </div>
+          <div class="callout callout-warn"><span class="callout-label">자주 하는 착각</span>여러 단계의 Choice 확률을 곱했다고 업무 성공률이 되지 않는다. 같은 상태에서 평가한 질문들이 현실에서 독립이라는 뜻도 아니다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">19 · 평가와 자동실행 조건</div>
+        <h2 class="slide-title">결과를 믿으려면 <span class="hl">다섯 가지를 따로</span> 잰다</h2>
+        <div class="slide-body">
+          <ul class="checklist">
+            <li><b>후보 안에 맞는 작업이 있나</b> — 후보 재현율 · 단계별 정확도</li>
+            <li><b>확률이 실제와 맞나</b> — 정답 라벨 · 보정 도표 · Brier</li>
+            <li><b>자동으로 처리한 것 중 틀린 건 얼마나</b> — 자동처리율과 그 집합의 오류율</li>
+            <li><b>결과 자체가 맞나</b> — 행 수 · 합계 · 중복 · 키 · 단위 · 정답 파일 대조</li>
+            <li><b>얼마나 드나</b> — 호출 수 · 토큰 · 응답 시간 · 실제 모델 버전</li>
+          </ul>
+          <div class="callout callout-warn"><span class="callout-label">안전장치</span>confidence 하나로 실행 권한을 주지 않는다. 임계값(예: 0.8)은 시작 예시일 뿐 오류 비용을 보고 정한다. 셀 안의 문장을 명령으로 실행하지 않고, 등록된 작업 ID 만 검증 후 실행한다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="엑셀 업무에">
+        <div class="slide-kicker">확인 퀴즈</div>
+        <h2 class="slide-title">코드 검사와 모델 판단이 부딪힐 때</h2>
+        <div class="slide-body">
+          <div class="quiz">
+            <div class="quiz-q">Jev 가 「중복 문제 없음」을 높은 확률로 골랐는데, 코드가 업무 키 중복 2건을 찾았다. 어떻게 해야 할까?</div>
+            <div class="quiz-options">
+              <button class="quiz-option" data-correct="false">확률이 높으니 그대로 다음 작업을 실행한다</button>
+              <button class="quiz-option" data-correct="true">코드 검사가 우선 — 관련 실행을 멈추고 검토로 돌린다</button>
+              <button class="quiz-option" data-correct="false">중복 2건을 바로 자동 삭제한다</button>
+              <button class="quiz-option" data-correct="false">confidence 가 0.9 를 넘으면 진행한다</button>
+            </div>
+            <div class="quiz-reveal">
+              <div class="quiz-answer">정답: 코드 검사가 우선 — 검토로 돌린다</div>
+              <div class="quiz-explain">원자료에서 확실히 잴 수 있는 사실은 코드가 판정하고, 모델의 확률로 덮지 않는다. 또 중복 검출(D03)과 해소(E04)는 다른 작업이라, 어떤 행을 남길지 정책을 정하기 전에는 지우지 않는다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="정리">
+        <div class="slide-kicker">20 · 마무리 질문</div>
+        <h2 class="slide-title">다섯 질문으로 <span class="hl">오늘을 정리</span>한다</h2>
+        <div class="slide-body">
+          <div class="table-wrap">
+            <table><thead><tr><th>질문</th><th>답</th></tr></thead>
+              <tbody>
+                <tr><td>Jev 에게 엑셀 합계를 직접 맡길까?</td><td>합계는 코드가, Jev 는 해석 · 선택에</td></tr>
+                <tr><td>Score 1.5 가 정확도 75% 인가?</td><td>정해 둔 수준 번호의 가중평균이다</td></tr>
+                <tr><td>confidence 0.9 면 90% 맞는가?</td><td>실제 라벨로 확인해야 한다</td></tr>
+                <tr><td>반복 호출하면 모델이 학습되는가?</td><td>상태를 갱신할 뿐, 재학습과 별개다</td></tr>
+                <tr><td>파일만 있으면 최적 활용이 하나로 정해지나?</td><td>목표와 업무 규칙에 따라 여러 길이 있다</td></tr>
+              </tbody></table>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="정리">
+        <div class="slide-kicker">마지막 활동</div>
+        <h2 class="slide-title">내 업무에서 <span class="hl">조건과 후보가 분명한 판단</span> 하나를 적어 보자</h2>
+        <div class="slide-body">
+          <div class="compare">
+            <div class="compare-col compare-a"><div class="compare-label">적을 것</div>
+              <ul><li><b>판단 하나</b> — 무엇을 고르게 할까</li><li><b>state</b> — 그 판단에 필요한 정보(목적 · 한 행의 의미 · 잰 값 · 규칙)</li><li><b>가능한 답</b> — Choice 선택지 · Score 수준 · 예/아니오 중 어떤 모양인가</li></ul></div>
+            <div class="compare-col compare-b"><div class="compare-label">예시</div>
+              <ul><li>주관식 의견을 미리 정한 범주 중 하나로 고르기</li><li>보고서에서 오류 검토 대상 고르기</li><li>이번 파일에 쓸 자동화 카드 추천받기</li></ul></div>
+          </div>
+          <div class="callout callout-conclusion"><span class="callout-label">한 문장 정리</span>고르는 일은 확률로, 계산과 확인은 코드로 — 그리고 두 숫자(선택 확률 · 실제 성공률)를 섞지 않는다.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-section="정리">
+        <div class="slide-kicker">출처와 범위</div>
+        <h2 class="slide-title">공식 문서로 확인한 것과 <span class="hl">교육용 예시</span>를 구분했다</h2>
+        <div class="slide-body">
+          <ul class="checklist" style="font-size:14px;">
+            <li>TypeSafe 공식 문서: <a href="https://docs.typesafe.ai/introduction" target="_blank" rel="noopener">소개</a> · <a href="https://docs.typesafe.ai/primitives/choice" target="_blank" rel="noopener">Choice</a> · <a href="https://docs.typesafe.ai/primitives/score" target="_blank" rel="noopener">Score</a> · <a href="https://docs.typesafe.ai/primitives/noul" target="_blank" rel="noopener">Noul</a> · <a href="https://docs.typesafe.ai/confidence" target="_blank" rel="noopener">Confidence</a> · <a href="https://docs.typesafe.ai/concepts/state" target="_blank" rel="noopener">State</a> · <a href="https://docs.typesafe.ai/api" target="_blank" rel="noopener">HTTP API</a> · <a href="https://docs.typesafe.ai/introduction/machine-learning-primer" target="_blank" rel="noopener">RLCD 설명</a> · <a href="https://docs.typesafe.ai/cookbooks/hierarchical_classification" target="_blank" rel="noopener">계층 분류 · beam search</a></li>
+            <li>보정 연구: <a href="https://proceedings.mlr.press/v70/guo17a.html" target="_blank" rel="noopener">Guo 외, ICML 2017</a> · 평균−분산 정책: <a href="https://icml.cc/2012/papers/489.pdf" target="_blank" rel="noopener">Tamar 외, ICML 2012</a> (Jev 논문이 아님)</li>
+            <li>표의 가상 자료 · 설명용 확률 · 임계값은 교육용 예시다. 153개 카드는 첨부 엑셀 자동화 가이드의 설계 개수다</li>
+            <li>앱 캡처는 모두 <b>모의 판단(MOCK)</b> — 실제 Jev 호출은 이 자료에서 검증하지 않았다</li>
+          </ul>
+          <div class="callout callout-example"><span class="callout-label">더 해 보기</span>앱 켜기: <code>data-roadmap\run.bat</code> 더블클릭 → <a href="http://127.0.0.1:8765/learn" target="_blank" rel="noopener">배우기(/learn)</a> · <a href="http://127.0.0.1:8765/" target="_blank" rel="noopener">로드맵</a></div>
+        </div>
+      </section>
+
+      <!-- SLIDES END -->
+
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btnFirst" title="처음으로" aria-label="처음으로">⏮</button>
+    <button class="ctrl-btn" id="btnPrev" title="이전" aria-label="이전 슬라이드">◀</button>
+    <div class="page-indicator" id="pageIndicator">1 / 39</div>
+    <button class="ctrl-btn" id="btnNext" title="다음" aria-label="다음 슬라이드">▶</button>
+    <button class="ctrl-btn" id="btnLast" title="마지막으로" aria-label="마지막으로">⏭</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var frame = document.getElementById('frame');
+  var stage = document.getElementById('stage');
+  var slides = Array.prototype.slice.call(frame.querySelectorAll('.slide'));
+  var pageIndicator = document.getElementById('pageIndicator');
+  var sectionLabel = document.getElementById('sectionLabel');
+  var progressBar = document.getElementById('progressBar');
+  var btnFirst = document.getElementById('btnFirst');
+  var btnPrev = document.getElementById('btnPrev');
+  var btnNext = document.getElementById('btnNext');
+  var btnLast = document.getElementById('btnLast');
+
+  var current = 0;
+  var stepIndex = 0;
+
+  function stepsOf(slide){
+    var els = slide.querySelectorAll('[data-step]');
+    var max = 0;
+    for(var i=0;i<els.length;i++){
+      var n = parseInt(els[i].getAttribute('data-step'), 10);
+      if(!isNaN(n) && n > max) max = n;
+    }
+    return max;
+  }
+
+  function applySteps(slide, idx){
+    var els = slide.querySelectorAll('[data-step]');
+    for(var i=0;i<els.length;i++){
+      var n = parseInt(els[i].getAttribute('data-step'), 10);
+      els[i].classList.toggle('step-hidden', n > idx);
+    }
+  }
+
+  function render(){
+    for(var i=0;i<slides.length;i++){ slides[i].classList.toggle('active', i === current); }
+    var slide = slides[current];
+    applySteps(slide, stepIndex);
+    pageIndicator.textContent = (current+1) + ' / ' + slides.length;
+    sectionLabel.textContent = slide.getAttribute('data-section') || '';
+    progressBar.style.width = ((current+1) / slides.length * 100) + '%';
+    btnFirst.disabled = current === 0;
+    btnPrev.disabled = current === 0;
+    btnNext.disabled = current === slides.length - 1;
+    btnLast.disabled = current === slides.length - 1;
+  }
+
+  function next(){
+    var slide = slides[current];
+    var maxStep = stepsOf(slide);
+    if(stepIndex < maxStep){ stepIndex++; render(); return; }
+    if(current < slides.length - 1){ current++; stepIndex = 0; render(); }
+  }
+  function prev(){
+    if(stepIndex > 0){ stepIndex--; render(); return; }
+    if(current > 0){ current--; stepIndex = stepsOf(slides[current]); render(); }
+  }
+  function first(){ current = 0; stepIndex = 0; render(); }
+  function last(){ current = slides.length - 1; stepIndex = stepsOf(slides[current]); render(); }
+
+  btnFirst.addEventListener('click', function(e){ e.stopPropagation(); first(); });
+  btnPrev.addEventListener('click', function(e){ e.stopPropagation(); prev(); });
+  btnNext.addEventListener('click', function(e){ e.stopPropagation(); next(); });
+  btnLast.addEventListener('click', function(e){ e.stopPropagation(); last(); });
+
+  stage.addEventListener('click', function(e){
+    if(e.target.closest('.quiz-option, .ctrl-btn, button, a, input, textarea, select, label')) return;
+    next();
+  });
+
+  window.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); next(); }
+    else if(e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+    else if(e.key === 'Home'){ e.preventDefault(); first(); }
+    else if(e.key === 'End'){ e.preventDefault(); last(); }
+  });
+
+  var touchX = null;
+  stage.addEventListener('touchstart', function(e){ touchX = e.changedTouches[0].clientX; }, {passive:true});
+  stage.addEventListener('touchend', function(e){
+    if(touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if(Math.abs(dx) > 50){ if(dx < 0){ next(); } else { prev(); } }
+    touchX = null;
+  }, {passive:true});
+
+  var quizzes = document.querySelectorAll('.quiz');
+  for(var q=0; q<quizzes.length; q++){
+    (function(quiz){
+      var options = quiz.querySelectorAll('.quiz-option');
+      for(var i=0;i<options.length;i++){
+        options[i].addEventListener('click', function(e){
+          e.stopPropagation();
+          if(quiz.classList.contains('answered')) return;
+          quiz.classList.add('answered');
+          for(var j=0;j<options.length;j++){
+            options[j].disabled = true;
+            if(options[j].getAttribute('data-correct') === 'true'){ options[j].classList.add('is-correct'); }
+          }
+          if(this.getAttribute('data-correct') !== 'true'){ this.classList.add('is-wrong'); }
+        });
+      }
+    })(quizzes[q]);
+  }
+
+  function fit(){
+    var pad = 24;
+    var availW = stage.clientWidth - pad*2;
+    var availH = stage.clientHeight - pad*2;
+    var scale = Math.min(availW/1280, availH/720);
+    frame.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+# .bat 은 cmd 가 LF 줄끝을 잘못 읽을 수 있어 어디서 꺼내든 CRLF 로 (rules.md)
+*.bat text eol=crlf

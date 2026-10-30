@@ -1,0 +1,10 @@
+{
+ "example": "C",
+ "fixed_before_run": true,
+ "table_status": "needs_info",
+ "root_choice_in": [
+  "needs_info",
+  "unsupported"
+ ],
+ "sum_published": false
+}

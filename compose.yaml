@@ -1,0 +1,19 @@
+services:
+  app:
+    image: local/dataroadmap:latest
+    container_name: dataroadmap
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8785:8765"
+    volumes:
+      - ./data:/data
+      - ./codex:/home/app/.codex
+    read_only: true
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=1777,size=256m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1200m
+    cpus: 1.5
+    pids_limit: 128

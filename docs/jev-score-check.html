@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jev 점수 검사 풀이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Noto+Serif+KR:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#F5F7FA; --panel:#FFFFFF; --ink:#18202C; --muted:#586273; --line:#D9DEE6;
+  --accent:#2B63D9; --accent-soft:#E3ECFD; --warn:#B93C12; --warn-soft:#FCE9E1; --ok:#177245; --ok-soft:#E1F3E8;
+  --bar:#9DB6E8; --bar-strong:#2B63D9;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --serif:"Noto Serif KR","Cambria Math","Times New Roman",serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#11151C; --panel:#191F29; --ink:#E4E8EF; --muted:#98A2B3; --line:#2C3441;
+    --accent:#7FA6FF; --accent-soft:#1E2B45; --warn:#FF9A73; --warn-soft:#3A2119; --ok:#6DD39A; --ok-soft:#16301F;
+    --bar:#3A527F; --bar-strong:#7FA6FF;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#11151C; --panel:#191F29; --ink:#E4E8EF; --muted:#98A2B3; --line:#2C3441;
+  --accent:#7FA6FF; --accent-soft:#1E2B45; --warn:#FF9A73; --warn-soft:#3A2119; --ok:#6DD39A; --ok-soft:#16301F;
+  --bar:#3A527F; --bar-strong:#7FA6FF;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.75 var(--sans);margin:0}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:40px 72px;display:flex;flex-direction:column;gap:44px}
+h1{font-size:1.9rem;line-height:1.3;margin:0;text-wrap:balance}
+h2{font-size:1.25rem;margin:0 0 .6rem;text-wrap:balance}
+p{margin:.5rem 0}
+.lead{color:var(--muted);margin-top:.6rem}
+.eyebrow{font-size:.78rem;letter-spacing:.08em;color:var(--accent);font-weight:700}
+.err{font-family:var(--mono);font-size:.9rem;background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:.8rem 1rem;margin:1rem 0 0;overflow-wrap:anywhere}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1.1rem 1.2rem}
+.note{font-size:.9rem;color:var(--muted)}
+.tag{display:inline-block;font-size:.75rem;font-weight:700;padding:.1rem .5rem;border-radius:999px;background:var(--accent-soft);color:var(--accent);vertical-align:middle}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+dl.pairs{display:grid;grid-template-columns:auto 1fr;gap:.35rem 1rem;margin:.6rem 0 0}
+dl.pairs dt{font-weight:600}
+dl.pairs dd{margin:0}
+
+/* 수식 */
+.eq{font-family:var(--serif);font-size:1.3rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.35em;padding:1.1rem .6rem;margin:.8rem 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+.eq.small{font-size:1.1rem}
+.eq i{font-style:italic}
+.eq .word{font-family:var(--sans);font-size:.85em;font-style:normal}
+.eq .hi{color:var(--accent);font-weight:600}
+.eq .bad{color:var(--warn);font-weight:600}
+.eq .good{color:var(--ok);font-weight:600}
+.sum{display:inline-flex;flex-direction:column;align-items:center;line-height:1;margin:0 .1em}
+.sum .big{font-size:1.9em;line-height:1}
+.sum small{font-size:.55em;font-style:italic}
+.abs{border-left:2px solid currentColor;border-right:2px solid currentColor;padding:0 .3em}
+sub,sup{font-size:.65em}
+.frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-size:.9em}
+.frac span:first-child{border-bottom:1.5px solid currentColor;padding:0 .25em}
+
+/* 표 */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.95rem}
+th,td{padding:.45rem .6rem;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:.8rem;color:var(--muted);font-weight:600}
+tr.total td{font-weight:700;border-bottom:none}
+td.lv{white-space:normal}
+
+/* 그림 */
+figure{margin:.8rem 0 0}
+figcaption{font-size:.85rem;color:var(--muted);margin-top:.4rem}
+svg text{font-family:var(--sans);fill:var(--ink)}
+svg .muted{fill:var(--muted)}
+svg .axis{stroke:var(--muted);stroke-width:1.5}
+svg .bar{fill:var(--bar)}
+svg .bar.strong{fill:var(--bar-strong)}
+svg .fulcrum{fill:var(--accent)}
+svg .band-old{fill:var(--warn-soft);stroke:var(--warn);stroke-dasharray:4 3}
+svg .band-new{fill:var(--ok-soft);stroke:var(--ok)}
+svg .pt-app{fill:var(--accent)}
+svg .pt-jev{fill:var(--warn)}
+svg .lbl-warn{fill:var(--warn);font-weight:700}
+svg .lbl-ok{fill:var(--ok);font-weight:700}
+svg .lbl-acc{fill:var(--accent);font-weight:700}
+
+/* 계산기 */
+.calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.7rem;margin-top:.6rem}
+.calc label{display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:.2rem}
+.calc input{font:600 1rem var(--mono);padding:.45rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+.calc input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.out{margin-top:1rem;display:grid;gap:.4rem;font-variant-numeric:tabular-nums}
+.out .row{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;border-bottom:1px dashed var(--line);padding-bottom:.35rem}
+.out .row:last-child{border-bottom:none}
+.out b{font-family:var(--mono)}
+ol.opts{padding-left:1.2rem;margin:.4rem 0}
+ol.opts li{margin:.3rem 0}
+</style>
+
+</head><body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">데이터 활용 로드맵 · 첫 실제 Jev 호출(2026-09-27)</div>
+    <h1>「판단 실패」 메시지 풀이</h1>
+    <p class="lead">Jev는 답을 보냈습니다. 앱이 그 답의 숫자 두 개를 서로 맞춰 봤는데 조금 어긋나서 받지 않았습니다. 무엇을 맞춰 봤는지 식과 그림으로 풉니다.</p>
+    <p class="err">판단 실패: contrib_I01: score 2.85 가 수준 범위 또는 분포의 가중평균 2.830 와 맞지 않습니다</p>
+  </header>
+
+  <section>
+    <h2>1. 무엇을 물었나</h2>
+    <p><code>contrib_I01</code>은 앱이 Jev에게 한 질문의 이름입니다. 질문은 이것입니다.</p>
+    <div class="box">「I01 <b>그룹별 합계</b> 작업은 이 목표에 얼마나 도움이 되나?」 네 칸 중에서 고르게 했습니다.
+      <div class="tablewrap"><table style="margin-top:.6rem">
+        <thead><tr><th>칸(수준) <i>k</i></th><th style="text-align:left">뜻</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td class="lv" style="text-align:left">목표와 관계없음</td></tr>
+          <tr><td>1</td><td class="lv" style="text-align:left">간접 도움(점검 · 표시)</td></tr>
+          <tr><td>2</td><td class="lv" style="text-align:left">필수 선행조건을 해결함</td></tr>
+          <tr><td>3</td><td class="lv" style="text-align:left">목표 결과를 직접 만듦</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <p>Jev는 딱 한 칸을 고르지 않습니다. 대신 두 가지를 같이 보냅니다.</p>
+    <dl class="pairs">
+      <dt>확률표</dt><dd>칸마다 「이 칸일 가능성」. 네 개를 더하면 1입니다.</dd>
+      <dt>점수(score)</dt><dd>확률표를 숫자 하나로 줄인 값. 0과 3 사이이고, 칸 사이 값(예: 2.85)도 나옵니다.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>2. 점수 = 확률표의 무게중심</h2>
+    <p>Jev 공식 문서는 점수를 「칸들의 확률 가중 평균」이라고 정의합니다. 칸 번호에 그 칸의 확률을 곱해서 모두 더하는 것입니다.</p>
+    <div class="eq">
+      <span class="word">점수</span> =
+      <span>0 × <i>p</i><sub>0</sub></span> +
+      <span>1 × <i>p</i><sub>1</sub></span> +
+      <span>2 × <i>p</i><sub>2</sub></span> +
+      <span>3 × <i>p</i><sub>3</sub></span>
+    </div>
+    <p>같은 식을 짧게 쓰면 이렇습니다(Σ는 「모두 더하기」 기호).</p>
+    <div class="eq small">
+      <span class="word">점수</span> =
+      <span class="sum"><small>3</small><span class="big">Σ</span><small>k=0</small></span>
+      <span><i>k</i> × <i>p</i><sub><i>k</i></sub></span>
+    </div>
+    <p>그림으로 보면 막대 네 개를 수평 막대 위에 올려놓았을 때 <b>균형이 잡히는 지점</b>입니다. 3번 칸이 무거울수록 받침점이 3 쪽으로 갑니다.</p>
+    <figure>
+      <svg viewBox="0 0 620 250" role="img" aria-label="수준 0부터 3까지의 확률 막대와 무게중심 2.83">
+        <line class="axis" x1="40" y1="190" x2="600" y2="190"/>
+        <!-- x(k) = 80 + k*160, 높이 = p*150 -->
+        <rect class="bar" x="55" y="188.5" width="50" height="1.5"/>
+        <rect class="bar" x="215" y="184" width="50" height="6"/>
+        <rect class="bar" x="375" y="181" width="50" height="9"/>
+        <rect class="bar strong" x="535" y="56.5" width="50" height="133.5"/>
+        <text x="80" y="178" text-anchor="middle" class="muted" font-size="13">0.01</text>
+        <text x="240" y="174" text-anchor="middle" class="muted" font-size="13">0.04</text>
+        <text x="400" y="171" text-anchor="middle" class="muted" font-size="13">0.06</text>
+        <text x="560" y="48" text-anchor="middle" font-size="13" font-weight="700">0.89</text>
+        <text x="80" y="212" text-anchor="middle" font-size="14">0</text>
+        <text x="240" y="212" text-anchor="middle" font-size="14">1</text>
+        <text x="400" y="212" text-anchor="middle" font-size="14">2</text>
+        <text x="560" y="212" text-anchor="middle" font-size="14">3</text>
+        <!-- 무게중심 2.83 → x = 80 + 2.83*160 = 532.8 -->
+        <polygon class="fulcrum" points="532.8,192 522.8,212 542.8,212"/>
+        <text x="505" y="238" text-anchor="end" class="lbl-acc" font-size="13">무게중심 = 2.83</text>
+      </svg>
+      <figcaption>막대 높이 = 칸별 확률(예시 숫자 — 아래 4절 참고). 받침점이 3에 가깝지만 3보다 조금 왼쪽입니다.</figcaption>
+    </figure>
+    <p>예시 확률로 직접 계산하면 이렇습니다.</p>
+    <div class="eq small">
+      0×0.01 + 1×0.04 + 2×0.06 + 3×0.89 = 0 + 0.04 + 0.12 + 2.67 = <span class="hi">2.83</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. 앱이 한 검사</h2>
+    <p>앱은 Jev가 보낸 점수를 그대로 믿지 않고, 같이 온 확률표로 위 계산을 한 번 더 합니다. 두 값의 차이가 기준보다 크면 「앞뒤가 안 맞는 응답」으로 보고 받지 않습니다. 그 답으로 계획을 이어 가지 않고, 모의 판단으로 몰래 바꾸지도 않습니다.</p>
+    <div class="eq">
+      <span class="abs"><span class="word">Jev 점수</span> − <span class="word">앱이 계산한 무게중심</span></span>
+      ≤ <span class="word">기준</span>
+    </div>
+    <p>이번 숫자를 넣으면 이렇습니다.</p>
+    <div class="eq">
+      <span class="abs">2.85 − 2.83</span> = 0.02 &nbsp;→&nbsp; <span class="word">예전 기준</span> 0.02 <span class="bad">넘음 → 거절</span>
+    </div>
+    <figure>
+      <svg viewBox="0 0 620 170" role="img" aria-label="2.78부터 2.90까지 확대한 수직선: 예전 허용 범위와 새 허용 범위">
+        <!-- x(v) = 40 + (v-2.78)/0.12*540 -->
+        <rect class="band-new" x="107.5" y="28" width="315" height="26" rx="4"/>
+        <rect class="band-old" x="175" y="66" width="180" height="26" rx="4"/>
+        <text x="112" y="46" class="lbl-ok" font-size="12">새 기준 ±0.035 (2.795 ~ 2.865)</text>
+        <text x="180" y="84" class="lbl-warn" font-size="12">예전 ±0.02 (2.81~2.85)</text>
+        <line class="axis" x1="40" y1="120" x2="580" y2="120"/>
+        <g font-size="12" class="muted" text-anchor="middle">
+          <text x="40" y="160" class="muted">2.78</text>
+          <text x="130" y="160" class="muted">2.80</text>
+          <text x="220" y="160" class="muted">2.82</text>
+          <text x="310" y="160" class="muted">2.84</text>
+          <text x="400" y="160" class="muted">2.86</text>
+          <text x="490" y="160" class="muted">2.88</text>
+          <text x="580" y="160" class="muted">2.90</text>
+        </g>
+        <circle class="pt-app" cx="265" cy="120" r="7"/>
+        <text x="265" y="143" text-anchor="middle" class="lbl-acc" font-size="12">앱 계산 2.83</text>
+        <circle class="pt-jev" cx="355" cy="120" r="7"/>
+        <text x="355" y="143" text-anchor="middle" class="lbl-warn" font-size="12">Jev 2.85</text>
+      </svg>
+      <figcaption>앱 계산값(2.83)을 가운데 두고 허용 범위를 그린 것. Jev의 2.85는 예전 범위의 끝에 걸려 있었고, 새 범위에서는 안쪽입니다.</figcaption>
+    </figure>
+    <p class="note">차이가 딱 0.02인데 왜 「넘었다」가 됐나: 컴퓨터는 소수를 2진수로 다뤄서 2.85 − 2.83 을 <code>0.020000000000000018</code>로 계산합니다. 0.02보다 아주 조금 커서 거절됐을 가능성이 큽니다. 새 기준에는 이런 경계 오차 여유도 넣었습니다.</p>
+  </section>
+
+  <section>
+    <h2>4. 왜 두 값이 다를 수 있나: 반올림</h2>
+    <p>Jev는 확률과 점수를 <b>소수 둘째 자리까지 반올림</b>해서 보내는 것으로 보입니다(공식 문서 예시도 둘째 자리). Jev 안에서는 반올림 전 숫자로 점수를 계산하고, 앱은 반올림된 숫자로 다시 계산합니다. 그래서 둘이 조금 다를 수 있습니다.</p>
+    <p class="note"><span class="tag warn">예시</span> 이번 실제 확률 네 개는 저장되지 않았습니다(실패하면 남기지 않게 짜여 있었고, 지금은 고쳤습니다). 아래는 「Jev 2.85 · 앱 2.83」이 똑같이 나오는 한 가지 경우입니다.</p>
+    <div class="tablewrap box" style="padding:.4rem .8rem">
+      <table>
+        <thead><tr><th>칸 <i>k</i></th><th>Jev 안의 값(반올림 전)</th><th><i>k</i> × 반올림 전</th><th>Jev가 보낸 값(둘째 자리)</th><th><i>k</i> × 보낸 값</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>0.005</td><td>0</td><td>0.01</td><td>0</td></tr>
+          <tr><td>1</td><td>0.038</td><td>0.038</td><td>0.04</td><td>0.04</td></tr>
+          <tr><td>2</td><td>0.064</td><td>0.128</td><td>0.06</td><td>0.12</td></tr>
+          <tr><td>3</td><td>0.893</td><td>2.679</td><td>0.89</td><td>2.67</td></tr>
+          <tr class="total"><td>합</td><td>1.000</td><td>2.845 → <span style="color:var(--warn)">2.85</span></td><td>1.00</td><td><span style="color:var(--accent)">2.83</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Jev는 계산을 제대로 했고(2.845를 반올림해 2.85), 확률표도 제대로 반올림했습니다(0.893 → 0.89). 둘 다 맞게 반올림했는데도 0.02가 벌어집니다.</p>
+  </section>
+
+  <section>
+    <h2>5. 반올림으로 벌어질 수 있는 최대 차이</h2>
+    <p>둘째 자리에서 반올림하면 값 하나가 많아야 0.005 움직입니다. 칸 <i>k</i>의 반올림 오차를 <i>ε</i><sub><i>k</i></sub>(엡실론)라고 쓰면:</p>
+    <div class="eq small">
+      <span class="abs"><i>ε</i><sub><i>k</i></sub></span> ≤ 0.005
+    </div>
+    <p>무게중심에서는 이 오차에 칸 번호 <i>k</i>가 곱해집니다. 3번 칸의 오차는 세 배로 커집니다. 모든 칸이 같은 방향으로 최대로 어긋난다고 치면:</p>
+    <div class="eq small">
+      <span class="abs"><span class="sum"><small>3</small><span class="big">Σ</span><small>k=0</small></span> <i>k</i> × <i>ε</i><sub><i>k</i></sub></span>
+      ≤ 0.005 × (0 + 1 + 2 + 3) = 0.005 × 6 = <span class="hi">0.03</span>
+    </div>
+    <p>점수 자체도 반올림되므로 0.005가 더 붙습니다.</p>
+    <div class="eq">
+      <span class="word">반올림만으로 생길 수 있는 최대 차이</span> = 0.03 + 0.005 = <span class="good">0.035</span>
+    </div>
+    <p>예전 기준 0.02는 이 값보다 좁았습니다. 그래서 Jev가 제대로 답해도 거절될 수 있었습니다. 0.02는 명세에 있던 숫자가 아니라 처음 만들 때 정한 기본값이었습니다(명세에는 「분포와 맞는가」라고만 적혀 있음).</p>
+    <p class="note">칸이 3개인 질문이면 0.005 × (0+1+2) + 0.005 = 0.02 입니다. 새 기준은 칸 수에 맞춰 이 식으로 계산합니다.</p>
+  </section>
+
+  <section>
+    <h2>6. 무엇을 바꿨나 <span class="tag ok">Q9 (b) 반영</span></h2>
+    <ol class="opts">
+      <li><b>기준을 반올림 한계로.</b> 네 칸 질문은 0.035, 세 칸 질문은 0.02. 이보다 큰 차이는 계속 거절합니다. 검사 자체를 빼지는 않았습니다.</li>
+      <li><b>거절한 응답도 원래 그대로 저장.</b> 다음에 또 거절되면 확률 네 개를 직접 볼 수 있습니다. 거절한 답은 계획에는 쓰지 않습니다.</li>
+    </ol>
+    <p>확인한 것(자동 점검 71개 모두 통과):</p>
+    <dl class="pairs">
+      <dt><span class="tag ok">통과</span></dt><dd>이번 실제 사례(점수 2.85, 확률 0.01 · 0.04 · 0.06 · 0.89)를 가짜 Jev 서버로 똑같이 보내면 이제 받아들입니다.</dd>
+      <dt><span class="tag warn">거절</span></dt><dd>반올림으로 설명 안 되는 차이(2.93 vs 2.83, 0.1 차이)는 여전히 거절하고, 그 원래 응답이 저장됩니다.</dd>
+    </dl>
+    <p class="note">실제 Jev로 다시 해 보려면 켜 둔 앱을 한 번 껐다 켜야 합니다(run.bat).</p>
+  </section>
+
+  <section>
+    <h2>7. 직접 넣어 보기</h2>
+    <p>확률 네 개와 Jev 점수를 넣으면 앱이 하는 계산을 그대로 보여 줍니다. 처음 값은 위 예시입니다.</p>
+    <div class="box">
+      <div class="calc">
+        <label for="p0"><span><i>p</i><sub>0</sub> (칸 0)</span><input id="p0" type="number" step="0.01" min="0" max="1" value="0.01"></label>
+        <label for="p1"><span><i>p</i><sub>1</sub> (칸 1)</span><input id="p1" type="number" step="0.01" min="0" max="1" value="0.04"></label>
+        <label for="p2"><span><i>p</i><sub>2</sub> (칸 2)</span><input id="p2" type="number" step="0.01" min="0" max="1" value="0.06"></label>
+        <label for="p3"><span><i>p</i><sub>3</sub> (칸 3)</span><input id="p3" type="number" step="0.01" min="0" max="1" value="0.89"></label>
+        <label for="sc"><span>Jev 점수</span><input id="sc" type="number" step="0.01" min="0" max="3" value="2.85"></label>
+      </div>
+      <div class="out" aria-live="polite">
+        <div class="row"><span>확률 합(1이어야 함)</span><b id="o-sum"></b></div>
+        <div class="row"><span>앱이 계산한 무게중심 0×<i>p</i><sub>0</sub>+1×<i>p</i><sub>1</sub>+2×<i>p</i><sub>2</sub>+3×<i>p</i><sub>3</sub></span><b id="o-mean"></b></div>
+        <div class="row"><span>차이 |점수 − 무게중심|</span><b id="o-diff"></b></div>
+        <div class="row"><span>예전 기준 0.02</span><span id="o-old"></span></div>
+        <div class="row"><span>새 기준 0.035</span><span id="o-new"></span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var ids=['p0','p1','p2','p3','sc'];
+  function v(id){var x=parseFloat(document.getElementById(id).value);return isFinite(x)?x:0;}
+  function tag(ok,label){return '<span class="tag '+(ok?'ok':'warn')+'">'+label+'</span>';}
+  function run(){
+    var p=[v('p0'),v('p1'),v('p2'),v('p3')], sc=v('sc');
+    var sum=p[0]+p[1]+p[2]+p[3];
+    var mean=0*p[0]+1*p[1]+2*p[2]+3*p[3];
+    var diff=Math.abs(sc-mean);
+    var sumOk=Math.abs(sum-1)<=0.001;
+    document.getElementById('o-sum').innerHTML=sum.toFixed(3)+' '+(sumOk?'':tag(false,'1이 아님 → 앱이 거절'));
+    document.getElementById('o-mean').textContent=mean.toFixed(3);
+    document.getElementById('o-diff').textContent=diff.toFixed(3)+(Math.abs(diff-0.02)<1e-12?' (컴퓨터 계산: '+diff.toPrecision(17)+')':'');
+    document.getElementById('o-old').innerHTML=(sumOk&&diff<=0.02)?tag(true,'통과'):tag(false,'거절');
+    document.getElementById('o-new').innerHTML=(sumOk&&diff<=0.035+1e-9)?tag(true,'통과'):tag(false,'거절');
+  }
+  ids.forEach(function(id){document.getElementById(id).addEventListener('input',run);});
+  run();
+})();
+</script>
+
+</body></html>

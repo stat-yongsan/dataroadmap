@@ -1,0 +1,37 @@
+# 백엔드 의존성 — 26.9.27 설치 버전으로 고정(원문 §4 잠금). 설치: .venv\Scripts\python -m pip install -r requirements.txt
+fastapi==0.141.1
+uvicorn==0.54.0
+python-multipart==0.0.32
+openpyxl==3.1.5
+matplotlib==3.11.2
+anthropic==1.8.0
+# 아래는 위 패키지가 끌어오는 것(버전 고정용)
+starlette==1.7.0
+pydantic==2.13.5
+pydantic_core==2.46.5
+anyio==4.15.1
+h11==0.16.0
+click==8.5.0
+et_xmlfile==2.0.0
+numpy==2.5.3
+pillow==12.3.0
+fonttools==4.66.0
+contourpy==1.4.0
+cycler==0.12.1
+kiwisolver==1.5.1
+pyparsing==3.3.3
+python-dateutil==2.9.0.post0
+packaging==26.3
+six==1.17.0
+idna==3.20
+typing_extensions==4.16.0
+typing-inspection==0.4.4
+annotated-types==0.8.0
+annotated-doc==0.0.5
+# anthropic 이 끌어오는 것(26.9.28 · /race 의 Opus 5.5 호출용)
+docstring_parser==0.18.0
+httpcore2==2.13.1
+httpx2==2.13.1
+jiter==0.17.0
+sniffio==1.3.1
+truststore==0.10.4
