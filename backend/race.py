@@ -123,6 +123,8 @@ def decisions_call(payload: dict, key: str) -> dict:
         with urlopen(req, timeout=30) as response:
             result = json.loads(response.read())
     except HTTPError as exc:
+        if exc.code == 429:
+            raise ValueError("OpenAI Decisions 요청이 제한됐습니다 (HTTP 429). API 결제 상태와 사용 한도를 확인해 주세요.") from exc
         raise ValueError(f"OpenAI Decisions 요청 실패 (HTTP {exc.code})") from exc
     except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         raise ValueError("OpenAI Decisions 연결 또는 응답에 실패했습니다.") from exc

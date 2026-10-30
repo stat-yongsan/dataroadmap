@@ -7,6 +7,7 @@ import sys
 import tempfile
 import types
 import unittest
+from urllib.error import HTTPError
 from pathlib import Path
 from unittest.mock import patch
 from openpyxl import Workbook
@@ -215,6 +216,15 @@ class DataRoadmapTests(unittest.TestCase):
             self.assertEqual({x["value"]: x["description"] for x in sent["questions"][0]["choices"]}, race.CHOICES)
             self.assertEqual(result["probabilities"]["I"], 1)
             self.assertTrue(result["probabilities_complete"])
+
+    def test_openai_rate_limit_reports_action_without_exposing_response(self):
+        error = HTTPError("https://api.openai.com/v1/decisions", 429, "Too Many Requests", {}, None)
+        with patch.object(race, "urlopen", side_effect=error):
+            result = race.timed(race.decisions_call, race.question({}), "fake-openai-key")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("429", result["error"])
+        self.assertIn("결제 상태와 사용 한도", result["error"])
+        self.assertNotIn("fake-openai-key", result["error"])
 
     def test_jev_version_mismatch_rejected(self):
         response = io.BytesIO(json.dumps({"model": "jev-1.14.0", "answers": {}}).encode())
