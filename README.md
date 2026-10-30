@@ -1,29 +1,25 @@
-# Data Roadmap | 데이터 활용 로드맵
+# Data Roadmap
 
-Turn a spreadsheet into a visible, verifiable sequence of data operations. The application measures the data, asks Codex to choose among allowed actions, runs a registered Python operation, and uses the observed result to plan the next step.
+An initial prototype of a new Data Roadmap built from scratch with Codex. It uses a catalogue of 17 work areas and 153 tasks organized with Astra, and helps a user turn a synthetic CSV and an analysis goal into an inspectable plan and a verified result.
 
-**[Try the public example](https://dataroadmap.axmaster.cloud/)** · [한국어 실습 워크숍](workshop/codex-data-roadmap.md) · [Codex Skill](skills/data-roadmap/SKILL.md) · [한국어 상세 안내](README_KO.md) · [Development record](docs/t15-process-log.md)
+[한국어 실습 워크숍](workshop/codex-data-roadmap.md) · [Codex Skill](skills/data-roadmap/SKILL.md)
 
-## Try it in your browser
+This is a **new Codex-built prototype**. An earlier prototype of the project was built with Claude Code; the earlier work remains in the repository history. The catalogue index and synthetic sample are reused as data; the application code in this version was newly written with Codex.
 
-1. Open the public example and select a numbered stage to see its checks and output.
-2. Compare the final table and decision record. The synthetic dataset contains 1,000 transactions across 10 departments; its independently checked total is **148,982,900 KRW**.
-3. Expand “만든 방법과 공개 예제의 범위” to read how the example was produced.
+## What it does
 
-The public example shows a stored run: clicking a stage does not call a model. Uploading a file and creating a new Codex plan on the hosted site require administrator access.
+1. Reads a UTF-8 CSV, shows its columns and first five rows, and identifies numeric columns.
+2. Offers two implemented goals: group totals and group counts. The user selects the group and, for totals, the numeric column.
+3. Shows a plan before running it. Running the plan processes the data and checks the grouped total against the original total or row count.
+4. Displays Astra's catalogue as 17 areas and 153 cards. The catalogue is broader than the two goals implemented in this prototype.
 
-## How it works
+CSV files stay in the local app. The plans and calculations use deterministic code and do not call an AI model. Use synthetic data only. Unsupported goals, malformed rows, missing group values and unparseable numbers stop with an explanation.
 
-1. **Inspect:** Python reads CSV or XLSX and measures columns, types, missing values and duplicate keys.
-2. **Choose:** The application filters candidates by implemented operations and preconditions. Codex selects the next action from those candidates.
-3. **Execute and verify:** A registered Python handler executes the selected action. The app checks the result and preserves the original dataset and versioned outputs.
-4. **Replan:** The next choice uses the observed result. The graph distinguishes completed work from unexecuted projections.
+The separate **GPT-6.1 Sol vs Jev** comparison sends the same question and measured summary to Codex CLI and TypeSafe Jev after explicit in-app consent. It sends column names and row count, not CSV rows. Install Codex CLI and sign in with the intended account; put `TYPESAFE_API_KEY` in an untracked `.env` next to the app (or its parent) and restart. To use an existing `.env` elsewhere without copying the key, set `DATA_ROADMAP_ENV_FILE` to that file's path before starting. Both providers are called once per comparison. Timings include Codex CLI startup, and the comparison does not measure decision accuracy or execute either model's choice. The integration has been checked with simulated responses; real provider calls have not yet been verified for this version.
 
-Codex's 1/0 selection indicators are not probabilities or success rates. The app can surface missing-information or unsupported-operation choices instead of inventing a result. The catalogue describes 153 cards; 12 handlers are implemented.
+## Run on Windows
 
-## Run locally on Windows
-
-Prerequisites: Python 3.13 (`py -3`), Node.js 22 and npm. Open a terminal in the folder where you want the project and run:
+Prerequisites: Python 3.13, Node.js 22 and npm.
 
 ```powershell
 git clone https://github.com/stat-yongsan/dataroadmap.git
@@ -31,19 +27,15 @@ cd dataroadmap
 .\run.bat
 ```
 
-The first run installs dependencies and builds the frontend, then opens `http://127.0.0.1:8765`. Stop the server with Ctrl+C. The local app supports a mock decision mode without a model API key. Use the included synthetic examples for the first run.
+The first run installs dependencies and builds the interface. Open `http://127.0.0.1:8765`, select **가상 예제 시작하기**, choose a goal, create the plan and run it. The bundled synthetic sample has 1,000 transactions across 10 groups and a total of 148,982,900. Stop the app with Ctrl+C.
 
-For an existing Windows environment after installation, the backend checks can be run with:
+## Tests
+
+After the first run:
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -X utf8 check.py
+.\.venv\Scripts\python.exe -m unittest -v test_app
 ```
 
-The checks cover application behaviour and simulated provider responses; they do not prove model decision quality.
-
-## Project and evidence
-
-The project's 17 work areas and 153 task cards were organized with OpenAI GPT-6 Astra. The initial prototype was built with Claude Code. Codex implemented the Codex decision integration, the hosted public example and administrator access separation. The OpenAI Decisions API adapter was implemented with Claude Code and tested with a simulated server; a real OpenAI Decisions API call has not yet been verified. See the development records for details.
-
-The public demo uses synthetic data. Uploaded datasets and local execution results are stored outside version control. The app is intended for use with synthetic examples; do not assume it is ready for sensitive or production data.
+The tests check the catalogue counts, the sample's known total and row count, and rejection of malformed data. They do not establish model quality.

@@ -1,7 +1,6 @@
-# 올린 파일 · 버전 · 실행 산출물 · SQLite — 실제 자료가 섞일 수 있어 git 에서 뺀다(P9)
-data/
 backend/.venv/
-__pycache__/
 frontend/node_modules/
 frontend/dist/
+__pycache__/
+*.pyc
 .env
