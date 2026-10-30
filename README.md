@@ -4,7 +4,7 @@ An initial prototype of a new Data Roadmap built from scratch with Codex. It use
 
 [한국어 실습 워크숍](workshop/codex-data-roadmap.md) · [Codex Skill](skills/data-roadmap/SKILL.md)
 
-This is a **new Codex-built prototype**. An earlier prototype of the project was built with Claude Code; the earlier work remains in the repository history. The catalogue index and synthetic sample are reused as data; the application code in this version was newly written with Codex.
+This is a **new Codex-built prototype**. An earlier prototype of the project was built with Claude Code; the earlier work remains in the repository history. The catalogue index and earlier synthetic transactions are reused as data; the application code in this version was newly written with Codex.
 
 The prototype is available at [dataroadmap.axmaster.cloud](https://dataroadmap.axmaster.cloud/). The optional live model comparison is restricted to reviewers with an access password and a limited total number of comparisons; the local version can also be run using the instructions below.
 
@@ -29,7 +29,7 @@ cd dataroadmap
 .\run.bat
 ```
 
-The first run installs dependencies and builds the interface. Open `http://127.0.0.1:8765`, select **가상 예제 시작하기**, choose a goal, create the plan and select a path's **결과 미리보기** to check its result. The bundled synthetic sample has 1,000 transactions across 10 groups and a total of 148,982,900. Stop the app with Ctrl+C.
+The first run installs dependencies and builds the interface. Open `http://127.0.0.1:8765`, select **가상 예제 시작하기**, create the plan and select a path's **결과 미리보기** to check its result. The default sample is 1,000 fictional students with 30 columns. The initially selected group is support participation and grade band; its counts sum to 1,000. Select group totals, `학과` and `장학금_원` to obtain the independently verified total of 1,044,750,000. The synthetic contrast between support groups was deliberately constructed for demonstration: it does not represent actual students or establish causation. Grade bands use the average of midterm and final scores (80 or more: 우수; 65 or more: 보통; below 65: 주의). The earlier 1,000-transaction sample remains available from the download link or `/api/sample/transactions` and totals 148,982,900. Stop the app with Ctrl+C.
 
 ## Tests
 

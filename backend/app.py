@@ -15,10 +15,11 @@ from zipfile import BadZipFile, ZipFile
 from openpyxl import load_workbook
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from backend import access, race, roadmaps
+from backend.student_sample import student_csv
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BYTES = 2 * 1024 * 1024
@@ -60,7 +61,7 @@ def parse_csv(raw: bytes) -> tuple[list[str], list[dict[str, str]]]:
 def amount(value: str) -> Decimal:
     text = value.strip().removesuffix("원").strip()
     if not re.fullmatch(r"[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?", text):
-        raise ValueError("금액은 숫자와 천 단위 쉼표, 선택적인 원 단위만 지원합니다.")
+        raise ValueError("숫자는 천 단위 쉼표와 선택적인 원 단위만 지원합니다.")
     try:
         return Decimal(text.replace(",", ""))
     except InvalidOperation as exc:
@@ -89,9 +90,9 @@ def make_plan(raw: bytes, goal: str, group_col: str, value_col: str = "", source
         raise ValueError("데이터에 있는 그룹 열을 선택해 주세요.")
     if goal == "sum":
         if value_col not in columns or value_col == group_col:
-            raise ValueError("그룹 열과 다른 금액 열을 선택해 주세요.")
+            raise ValueError("그룹 열과 다른 숫자 열을 선택해 주세요.")
     first = "Excel 첫 시트 읽기" if source == "xlsx" else "CSV 읽기"
-    steps = ([first, "그룹 값 확인", "금액 해석", "그룹별 합계", "원본 합계와 대조"] if goal == "sum"
+    steps = ([first, "그룹 값 확인", "숫자 해석", "그룹별 합계", "원본 합계와 대조"] if goal == "sum"
              else [first, "그룹 값 확인", "그룹별 건수", "원본 행 수와 대조"])
     group_present = sum(bool(row[group_col].strip()) for row in rows)
     checks = [True, group_present == len(rows)]
@@ -206,7 +207,12 @@ def get_catalog():
 
 @app.get("/api/sample")
 def get_sample():
-    return FileResponse(ROOT / "data" / "sample.csv", media_type="text/csv", filename="sample.csv")
+    return Response(student_csv(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="students-synthetic.csv"'})
+
+
+@app.get("/api/sample/transactions")
+def get_transaction_sample():
+    return FileResponse(ROOT / "data" / "sample.csv", media_type="text/csv", filename="transactions-synthetic.csv")
 
 
 @app.post("/api/profile")

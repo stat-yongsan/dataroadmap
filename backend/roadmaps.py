@@ -2,7 +2,7 @@
 from itertools import permutations
 
 PAGE_SIZE = 20
-NAMES = {"A02": "엑셀 첫 시트 읽기", "A03": "CSV 읽기", "C03": "금액 해석",
+NAMES = {"A02": "엑셀 첫 시트 읽기", "A03": "CSV 읽기", "C03": "숫자 해석",
          "D01": "필수 열 확인", "D02": "그룹 결측 확인", "I01": "그룹별 집계", "N02": "결과 시각화"}
 
 

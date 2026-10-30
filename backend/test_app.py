@@ -1,4 +1,6 @@
 import json
+import csv
+from collections import Counter
 import io
 import os
 import sys
@@ -28,6 +30,30 @@ class DataRoadmapTests(unittest.TestCase):
         data = profile(self.sample)
         self.assertEqual(data["row_count"], 1000)
         self.assertIn("금액", data["numeric_columns"])
+
+    def test_default_student_example_and_previous_example(self):
+        client = TestClient(app)
+        response = client.get("/api/sample")
+        self.assertEqual(response.status_code, 200)
+        raw = response.content
+        self.assertEqual(raw, client.get("/api/sample").content)
+        rows = list(csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))))
+        self.assertEqual((len(rows), len(rows[0])), (1000, 30))
+        self.assertEqual(len({r["학생ID"] for r in rows}), 1000)
+        self.assertEqual(len({r["학과"] for r in rows}), 10)
+        self.assertEqual(Counter(r["학업지원참여"] for r in rows), {"참여": 500, "미참여": 500})
+        self.assertTrue(all(int(r["등록금_원"]) == int(r["장학금_원"]) + int(r["실납부액_원"]) for r in rows))
+        self.assertTrue(all(int(r["대출금_원"]) <= int(r["실납부액_원"]) for r in rows))
+        for row in rows:
+            score = (float(row["중간고사"]) + float(row["기말고사"])) / 2
+            self.assertEqual(row["성적구간"], "우수" if score >= 80 else "보통" if score >= 65 else "주의")
+        counts = Counter(r["지원_성적구간"] for r in rows)
+        self.assertGreater(counts["참여·우수"], counts["미참여·우수"] * 5)
+        result = execute(raw, "count", "지원_성적구간")
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["total"], "1000")
+        self.assertEqual(execute(raw, "sum", "학과", "장학금_원")["total"], str(sum(int(r["장학금_원"]) for r in rows)))
+        self.assertEqual(client.get("/api/sample/transactions").content, self.sample)
 
     def test_sum_is_verified_against_known_expected(self):
         plan = make_plan(self.sample, "sum", "부서", "금액")
