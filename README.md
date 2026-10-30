@@ -44,6 +44,6 @@ The checks cover application behaviour and simulated provider responses; they do
 
 ## Project and evidence
 
-The initial prototype was built with Claude Code. Codex implemented the Codex decision integration, the hosted public example and administrator access separation. The OpenAI Decisions API adapter was implemented with Claude Code and tested with a simulated server; a real OpenAI Decisions API call has not yet been verified. See the development records for details.
+The project's 17 work areas and 153 task cards were organized with OpenAI GPT-6 Astra. The initial prototype was built with Claude Code. Codex implemented the Codex decision integration, the hosted public example and administrator access separation. The OpenAI Decisions API adapter was implemented with Claude Code and tested with a simulated server; a real OpenAI Decisions API call has not yet been verified. See the development records for details.
 
 The public demo uses synthetic data. Uploaded datasets and local execution results are stored outside version control. The app is intended for use with synthetic examples; do not assume it is ready for sensitive or production data.
