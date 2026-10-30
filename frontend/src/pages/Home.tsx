@@ -189,7 +189,7 @@ export default function Home() {
               <span className="dim">행이 없는 그룹도 표에 남기고, 관측 0 과 구분합니다.</span>
             </div>
           )}
-          <p className="small dim">값 해석 규칙: {rules.amount_syntax?.desc || '기본 — 쉼표 · 괄호 음수 · % · 원 접미사'} · 한 행의 의미가 비어 있으면 판단은 「정보 필요」를 고릅니다.</p>
+          <p className="small dim">값 해석 규칙: {rules.amount_syntax?.desc || '기본 — 쉼표 · 괄호 음수 · % · 원 접미사'} · 한 행의 의미가 비어 있으면 「정보 필요」 후보가 표시될 수 있습니다.</p>
           <div className="row" style={{ marginTop: '.6rem' }}>
             <label className="small">판단 <select value={provider} onChange={(e) => setProvider(e.target.value as 'mock' | 'live' | 'codex' | 'openai')}>
               <option value="codex" disabled={!health?.codex_ready}>Codex 실제 판단 · {health?.codex_model || '기본 모델'}{health?.codex_ready ? '' : ' · 연결 꺼짐'}</option>
