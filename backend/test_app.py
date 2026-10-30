@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from backend.app import app, execute, make_plan, parse_csv, profile  # noqa: E402
-from backend import access, race  # noqa: E402
+from backend import access, race, roadmaps  # noqa: E402
 
 
 class DataRoadmapTests(unittest.TestCase):
@@ -93,28 +93,59 @@ class DataRoadmapTests(unittest.TestCase):
         rejected = client.post("/api/profile", files={"file": ("sample.xlsx", buf.getvalue(), "application/octet-stream")})
         self.assertEqual(rejected.status_code, 400)
 
+    def test_paths_and_copy_preview_are_real_and_bounded(self):
+        client = TestClient(app)
+        fields = {"goal": "sum", "group_col": "부서", "value_col": "금액"}
+        file = {"file": ("sample.csv", self.sample, "text/csv")}
+        first = client.post("/api/paths", data=fields, files=file).json()
+        second = client.post("/api/paths", data={**fields, "page": "2"}, files=file).json()
+        all_paths = first["paths"] + second["paths"]
+        self.assertEqual(first["total"], 22)
+        self.assertEqual(len(first["paths"]), 20)
+        self.assertEqual(len(set(p["id"] for p in all_paths)), 22)
+        selected = next(p for p in all_paths if p["steps"] == ["A03", "C03", "I01", "N02"])
+        result = client.post("/api/preview", data={**fields, "path_id": selected["id"]}, files=file)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["result"]["total"], "148982900")
+        self.assertEqual([s["id"] for s in result.json()["steps"]], selected["steps"])
+        self.assertIsNone(result.json()["stopped"])
+        self.assertEqual(client.post("/api/preview", data={**fields, "path_id": "A03-Q01-I01"}, files=file).status_code, 400)
+
+    def test_copy_preview_stops_on_invalid_input(self):
+        raw = b'group,value\na,10\nb,bad\n'
+        selected = next(p for p in roadmaps.paths("sum", "csv") if p["steps"] == ["A03", "C03", "I01"])
+        result = roadmaps.preview(raw, "sum", "group", "value", "csv", selected["id"])
+        self.assertIn("C03", result["stopped"])
+        self.assertIsNone(result["result"])
+        self.assertEqual(raw, b'group,value\na,10\nb,bad\n')
+
     def test_comparison_uses_same_question_and_reports_failures(self):
         state = {"goal": "sum", "row_count": 1000, "columns": ["부서", "금액"]}
         seen = []
-        def codex(payload):
+        def openai(payload, key):
             seen.append(payload)
-            return {"choice": "C", "model": "gpt-6.1-sol"}
+            self.assertEqual(key, "fake-openai-key")
+            return {"choice": "C", "model": "gpt-6-luna"}
         def jev(payload, key):
             seen.append(payload)
             self.assertEqual(key, "fake-key")
             raise ValueError("simulated failure")
-        with patch.object(race, "jev_key", return_value="fake-key"), patch.object(race.shutil, "which", return_value="codex"), patch.object(race, "codex_call", side_effect=codex), patch.object(race, "jev_call", side_effect=jev):
+        with patch.object(race, "jev_key", return_value="fake-key"), patch.object(race, "openai_key", return_value="fake-openai-key"), patch.object(race, "decisions_call", side_effect=openai), patch.object(race, "jev_call", side_effect=jev):
             result = race.compare(state)
         self.assertEqual(seen[0], seen[1])
         self.assertEqual(result["gpt"]["choice"], "C")
         self.assertEqual(result["jev"]["status"], "failed")
         self.assertNotIn("fake-key", json.dumps(result))
 
-    def test_comparison_without_key_never_starts_codex(self):
-        with patch.object(race, "jev_key", return_value=""), patch.object(race, "codex_call") as codex:
+    def test_comparison_without_key_never_starts_provider(self):
+        with patch.object(race, "jev_key", return_value=""), patch.object(race, "decisions_call") as openai:
             with self.assertRaises(ValueError):
                 race.compare({"goal": "sum"})
-            codex.assert_not_called()
+            openai.assert_not_called()
+        with patch.object(race, "jev_key", return_value="fake-key"), patch.object(race, "openai_key", return_value=""), patch.object(race, "jev_call") as jev:
+            with self.assertRaises(ValueError):
+                race.compare({"goal": "sum"})
+            jev.assert_not_called()
 
     def test_existing_env_file_can_be_reused_without_exposing_key(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -137,12 +168,38 @@ class DataRoadmapTests(unittest.TestCase):
         with patch.object(race.shutil, "which", return_value="codex"), patch.object(race.subprocess, "run", side_effect=fake_run):
             self.assertEqual(race.codex_call(payload)["choice"], "C")
         probs = {key: float(key == "C") for key in race.CHOICES}
-        response = io.BytesIO(json.dumps({"model": "jev-test", "answers": {"next_step": {"choice": "C", "probabilities": probs}}}).encode())
+        response = io.BytesIO(json.dumps({"model": "jev-1.13.0", "answers": {"next_step": {"choice": "C", "probabilities": probs}}}).encode())
         with patch.object(race, "urlopen", return_value=response) as call:
             self.assertEqual(race.jev_call(payload, "fake-key")["choice"], "C")
             sent = json.loads(call.call_args.args[0].data)
             self.assertEqual(sent["state"], payload["state"])
             self.assertEqual(sent["questions"], payload["questions"])
+            self.assertEqual(sent["model"], "jev-1.13.0")
+
+    def test_openai_decisions_request_and_response(self):
+        payload = race.question({"goal": "sum", "row_count": 3})
+        probabilities = [{"value": k, "probability": float(k == "I")} for k in race.CHOICES]
+        response = io.BytesIO(json.dumps({"model": "gpt-6-luna", "answers": [{"name": "next_step", "type": "choice", "choice": "I", "probabilities": probabilities}]}).encode())
+        with patch.object(race, "urlopen", return_value=response) as call:
+            result = race.decisions_call(payload, "fake-openai-key")
+            sent = json.loads(call.call_args.args[0].data)
+            self.assertEqual(sent["model"], "gpt-6-luna")
+            self.assertEqual(sent["input"][0]["content"][0]["data"], payload["state"])
+            self.assertEqual({x["value"]: x["description"] for x in sent["questions"][0]["choices"]}, race.CHOICES)
+            self.assertEqual(result["probabilities"]["I"], 1)
+            self.assertTrue(result["probabilities_complete"])
+
+    def test_jev_version_mismatch_rejected(self):
+        response = io.BytesIO(json.dumps({"model": "jev-1.14.0", "answers": {}}).encode())
+        with patch.object(race, "urlopen", return_value=response):
+            with self.assertRaises(ValueError):
+                race.jev_call(race.question({}), "fake-key")
+
+    def test_openai_invalid_duplicate_probabilities_rejected(self):
+        answer = {"model": "gpt-6-luna", "answers": [{"name": "next_step", "type": "choice", "choice": "I", "probabilities": [{"value": "I", "probability": 0.5}, {"value": "I", "probability": 0.5}]}]}
+        with patch.object(race, "urlopen", return_value=io.BytesIO(json.dumps(answer).encode())):
+            with self.assertRaises(ValueError):
+                race.decisions_call(race.question({}), "fake-key")
 
     def test_http_flow_and_comparison_requires_consent_and_same_origin(self):
         client = TestClient(app)
@@ -153,7 +210,7 @@ class DataRoadmapTests(unittest.TestCase):
         self.assertEqual(post("/api/profile", {}).json()["row_count"], 1000)
         self.assertEqual(post("/api/plan", fields).json()["status"], "not_run")
         self.assertEqual(post("/api/run", fields).json()["total"], "148982900")
-        with patch.object(race, "availability", return_value={"codex_installed": True, "jev_key_present": True}), patch.object(race, "compare", return_value={"gpt": {"status": "ok"}, "jev": {"status": "ok"}}) as comparison:
+        with patch.object(race, "availability", return_value={"codex_installed": True, "jev_key_present": True, "openai_key_present": True}), patch.object(race, "compare", return_value={"gpt": {"status": "ok"}, "jev": {"status": "ok"}}) as comparison:
             self.assertEqual(post("/api/race", fields).status_code, 403)
             self.assertEqual(post("/api/race", {**fields, "consent": "true"}, {"x-data-roadmap": "1", "origin": "https://evil.example"}).status_code, 403)
             self.assertEqual(post("/api/race", fields, {"x-data-roadmap": "1"}).status_code, 400)
@@ -170,7 +227,7 @@ class DataRoadmapTests(unittest.TestCase):
         fields = {"goal": "sum", "group_col": "group", "value_col": "value", "consent": "true"}
         file = {"file": ("sample.csv", raw, "text/csv")}
         self.assertEqual(client.post("/api/run", data=fields, files=file).status_code, 400)
-        with patch.object(race, "availability", return_value={"codex_installed": True, "jev_key_present": True}), patch.object(race, "compare", return_value={"gpt": {}, "jev": {}}) as comparison:
+        with patch.object(race, "availability", return_value={"codex_installed": True, "jev_key_present": True, "openai_key_present": True}), patch.object(race, "compare", return_value={"gpt": {}, "jev": {}}) as comparison:
             response = client.post("/api/race", data=fields, files=file, headers={"x-data-roadmap": "1"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(comparison.call_args.args[0]["measured_checks"]["C03"]["score"], 50.0)
@@ -199,7 +256,7 @@ class DataRoadmapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             env = {"DATA_ROADMAP_HOSTED": "1", "DATA_ROADMAP_REVIEW_PASSWORD": "test-password",
                    "DATA_ROADMAP_QUOTA_DB": str(Path(temp) / "quota.db"), "DATA_ROADMAP_COMPARE_LIMIT": "1"}
-            with patch.dict(os.environ, env, clear=True), patch.object(race, "availability", return_value={"codex_installed": True, "jev_key_present": True}), patch.object(race, "compare", return_value={"gpt": {}, "jev": {}}) as comparison:
+            with patch.dict(os.environ, env, clear=True), patch.object(race, "availability", return_value={"codex_installed": True, "jev_key_present": True, "openai_key_present": True}), patch.object(race, "compare", return_value={"gpt": {}, "jev": {}}) as comparison:
                 self.assertEqual(send("wrong").status_code, 403)
                 self.assertEqual(comparison.call_count, 0)
                 self.assertEqual(send("test-password").status_code, 200)

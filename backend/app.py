@@ -18,7 +18,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
-from backend import access, race
+from backend import access, race, roadmaps
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BYTES = 2 * 1024 * 1024
@@ -233,6 +233,29 @@ async def run_plan(file: UploadFile = File(...), goal: str = Form(...), group_co
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/paths")
+async def list_paths(file: UploadFile = File(...), goal: str = Form(...), group_col: str = Form(...),
+                     value_col: str = Form(""), page: int = Form(1)):
+    try:
+        raw = await read_file(file)
+        source = "xlsx" if (file.filename or "").lower().endswith(".xlsx") else "csv"
+        plan = make_plan(raw, goal, group_col, value_col, source)
+        return {**roadmaps.list_paths(goal, source, page), "executable": plan["executable"]}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/preview")
+async def preview_path(file: UploadFile = File(...), goal: str = Form(...), group_col: str = Form(...),
+                       value_col: str = Form(""), path_id: str = Form(...)):
+    try:
+        raw = await read_file(file)
+        source = "xlsx" if (file.filename or "").lower().endswith(".xlsx") else "csv"
+        return roadmaps.preview(raw, goal, group_col, value_col, source, path_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.get("/api/race/availability")
 def race_availability():
     return {**race.availability(), "review_required": access.hosted()}
@@ -252,7 +275,8 @@ async def race_models(request: Request, file: UploadFile = File(...), goal: str 
         raw = await read_file(file)
         p = profile(raw)
         plan = make_plan(raw, goal, group_col, value_col, "xlsx" if (file.filename or "").lower().endswith(".xlsx") else "csv")
-        if not race.availability()["jev_key_present"] or not race.availability()["codex_installed"]:
+        availability = race.availability()
+        if not availability["jev_key_present"] or not availability["openai_key_present"]:
             raise ValueError("비교 공급자 설정을 확인해 주세요.")
         access.reserve(request.headers.get("x-review-password"))
         state = {"goal": goal, "group_col": group_col, "value_col": value_col if goal == "sum" else None,

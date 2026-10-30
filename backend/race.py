@@ -15,16 +15,18 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
 CODEX_MODEL = "gpt-6.1-sol"
-JEV_MODEL = "jev-latest"
+OPENAI_MODEL = "gpt-6-luna"
+OPENAI_URL = "https://api.openai.com/v1/decisions"
+JEV_MODEL = "jev-1.13.0"
 JEV_URL = "https://api.typesafe.ai/v1/systemone"
 _catalog = json.loads((ROOT / "data" / "catalog.json").read_text(encoding="utf-8"))
 CHOICES = {area: f"{area} 영역: {name}" for area, name in _catalog["area_names"].items()}
 CHOICES["needs_info"] = "필요한 정보가 부족하여 사용자에게 확인한다"
 
 
-def jev_key() -> str:
-    if "TYPESAFE_API_KEY" in os.environ:
-        return os.environ["TYPESAFE_API_KEY"].strip()
+def _key(key_name: str) -> str:
+    if key_name in os.environ:
+        return os.environ[key_name].strip()
     paths = [ROOT.parent / ".env", ROOT / ".env"]
     if os.environ.get("DATA_ROADMAP_ENV_FILE"):
         paths.insert(0, Path(os.environ["DATA_ROADMAP_ENV_FILE"]))
@@ -32,13 +34,22 @@ def jev_key() -> str:
         if path.is_file():
             for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
                 name, sep, value = line.partition("=")
-                if sep and name.strip() == "TYPESAFE_API_KEY":
+                if sep and name.strip() == key_name:
                     return value.strip().strip("\"'")
     return ""
 
 
+def jev_key() -> str:
+    return _key("TYPESAFE_API_KEY")
+
+
+def openai_key() -> str:
+    return _key("OPENAI_API_KEY")
+
+
 def availability() -> dict:
     return {"codex_installed": bool(shutil.which("codex")), "jev_key_present": bool(jev_key()),
+            "openai_key_present": bool(openai_key()), "openai_model": OPENAI_MODEL,
             "codex_model": CODEX_MODEL, "jev_model": JEV_MODEL}
 
 
@@ -98,6 +109,44 @@ def codex_call(payload: dict) -> dict:
     return {"choice": choice, "reason": reason.strip(), "model": CODEX_MODEL}
 
 
+def decisions_call(payload: dict, key: str) -> dict:
+    if not key:
+        raise ValueError("OPENAI_API_KEY가 없습니다. .env 설정을 확인해 주세요.")
+    q = payload["questions"]["next_step"]
+    body = {"model": OPENAI_MODEL,
+            "input": [{"role": "user", "content": [{"type": "input_json", "data": payload["state"]}]}],
+            "questions": [{"type": "choice", "name": "next_step", "instructions": q["instructions"],
+                           "choices": [{"value": k, "description": v} for k, v in q["criteria"].items()]}]}
+    req = Request(OPENAI_URL, data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST")
+    try:
+        with urlopen(req, timeout=30) as response:
+            result = json.loads(response.read())
+    except HTTPError as exc:
+        raise ValueError(f"OpenAI Decisions 요청 실패 (HTTP {exc.code})") from exc
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise ValueError("OpenAI Decisions 연결 또는 응답에 실패했습니다.") from exc
+    answers = result.get("answers") if isinstance(result, dict) else None
+    answer = next((a for a in answers if isinstance(a, dict) and a.get("name") == "next_step"), None) if isinstance(answers, list) else None
+    if not answer or answer.get("type") != "choice" or answer.get("choice") not in CHOICES:
+        raise ValueError("OpenAI Decisions 응답이 허용된 선택지가 아닙니다.")
+    probs = answer.get("probabilities")
+    if not isinstance(probs, list):
+        raise ValueError("OpenAI Decisions 확률 목록이 없습니다.")
+    mapped = {}
+    for item in probs:
+        if not isinstance(item, dict):
+            raise ValueError("OpenAI Decisions 확률 형식이 올바르지 않습니다.")
+        name, probability = item.get("value"), item.get("probability")
+        if name not in CHOICES or name in mapped or not isinstance(probability, (int, float)) or isinstance(probability, bool) or not math.isfinite(probability) or not 0 <= probability <= 1:
+            raise ValueError("OpenAI Decisions 확률 값이 올바르지 않습니다.")
+        mapped[name] = probability
+    if not mapped:
+        raise ValueError("OpenAI Decisions 확률 목록이 비어 있습니다.")
+    return {"choice": answer["choice"], "probabilities": mapped, "model": result.get("model") or OPENAI_MODEL,
+            "probabilities_complete": set(mapped) == set(CHOICES)}
+
+
 def jev_call(payload: dict, key: str) -> dict:
     if not key:
         raise ValueError("TYPESAFE_API_KEY가 없습니다. .env 설정을 확인해 주세요.")
@@ -111,6 +160,8 @@ def jev_call(payload: dict, key: str) -> dict:
     except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         raise ValueError("Jev 연결 또는 응답에 실패했습니다.") from exc
     answers = result.get("answers") if isinstance(result, dict) else None
+    if isinstance(result, dict) and result.get("model") and result["model"] != JEV_MODEL:
+        raise ValueError("Jev 응답 모델이 지정한 버전과 다릅니다.")
     next_step = answers.get("next_step") if isinstance(answers, dict) else None
     choice = next_step.get("choice") if isinstance(next_step, dict) else None
     if choice not in CHOICES:
@@ -139,11 +190,12 @@ def timed(fn, *args) -> dict:
 def compare(state: dict) -> dict:
     payload = question(state)
     key = jev_key()
+    openai = openai_key()
     if not key:
         raise ValueError("TYPESAFE_API_KEY가 없습니다. .env 설정을 확인해 주세요.")
-    if not shutil.which("codex"):
-        raise ValueError("Codex CLI를 찾을 수 없습니다. 설치와 로그인을 확인해 주세요.")
+    if not openai:
+        raise ValueError("OPENAI_API_KEY가 없습니다. .env 설정을 확인해 주세요.")
     with ThreadPoolExecutor(max_workers=2) as pool:
-        gpt = pool.submit(timed, codex_call, payload)
+        gpt = pool.submit(timed, decisions_call, payload, openai)
         jev = pool.submit(timed, jev_call, payload, key)
         return {"gpt": gpt.result(), "jev": jev.result(), "question": payload}
