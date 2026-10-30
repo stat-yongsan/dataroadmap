@@ -12,7 +12,7 @@ The prototype is available at [dataroadmap.axmaster.cloud](https://dataroadmap.a
 
 1. Reads UTF-8 CSV or the first sheet of an XLSX file, shows its columns and first five rows, and identifies numeric columns. XLSX formulas must first be saved as values; files are limited to 2 MB.
 2. Offers two implemented goals: group totals and group counts. The user selects the group and, for totals, the numeric column.
-3. Enumerates supported task sequences (20 per page), shows measured data checks and previews a selected sequence by actually running it on an in-memory copy. Running the fixed procedure checks the grouped total against the original total or row count and charts the actual result.
+3. Displays all 17 areas and marks which have supported steps for the selected goal. It enumerates supported task sequences (20 per page), shows measured data checks and previews a selected sequence by actually running it on an in-memory copy. This is a limited search over implemented steps, not all combinations of 153 tasks. Running the fixed procedure checks the grouped total against the original total or row count and charts the actual result.
 4. Displays Astra's catalogue as 17 areas and 153 cards. Only a few cards have measurable checks; other cards are marked unassessed, not zero. The catalogue is broader than the two executable goals.
 
 Files stay in the app. The fixed procedure and calculations use deterministic code and do not call an AI model. Measured check percentages are not AI recommendations or success probabilities. Use synthetic data only. Unsupported goals, malformed rows, missing group values and unparseable numbers stop execution with an explanation.
